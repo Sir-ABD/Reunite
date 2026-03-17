@@ -1,0 +1,220 @@
+:root {
+  --color-bg: #f9fafb;
+  --color-text: #1a202c;
+  --color-primary: #2563eb;
+  --color-secondary: #ffffff;
+  --color-accent: #6366f1;
+  --color-navbar: #2563eb;
+  --color-sidebar: #f3f4f6;
+}
+
+.dark {
+  --color-bg: #18181b;
+  --color-text: #f3f4f6;
+  --color-primary: #6366f1;
+  --color-secondary: #27272a;
+  --color-accent: #a5b4fc;
+  --color-navbar: #18181b;
+  --color-sidebar: #27272a;
+}
+
+body, html {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+@import "tailwindcss";
+
+@tailwind utilities;
+
+/* Status Badge Styles */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.375rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.2s ease-in-out;
+  cursor: default;
+  user-select: none;
+}
+
+.status-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status-badge.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.status-badge.active:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+.status-badge.inactive {
+  background: #6b7280;
+  color: #f9fafb;
+  box-shadow: 0 2px 4px rgba(107, 114, 128, 0.3);
+}
+
+.status-badge.inactive:hover {
+  background: #4b5563;
+  box-shadow: 0 4px 12px rgba(107, 114, 128, 0.4);
+}
+
+/* Item Status Badge Styles */
+.status-badge.lost {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+}
+
+.status-badge.lost:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+.status-badge.found {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.3);
+}
+
+.status-badge.found:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+}
+
+.status-badge.claimed {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3);
+}
+
+.status-badge.claimed:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+}
+
+.status-badge.returned {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: 0 2px 4px rgba(139, 92, 246, 0.3);
+}
+
+.status-badge.returned:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.4);
+}
+
+/* Dark mode adjustments for status badges */
+.dark .status-badge.active {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+}
+
+.dark .status-badge.active:hover {
+  background: linear-gradient(135deg, #5855eb 0%, #4338ca 100%);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.dark .status-badge.inactive {
+  background: #4b5563;
+  color: #e5e7eb;
+  box-shadow: 0 2px 4px rgba(75, 85, 99, 0.3);
+}
+
+.dark .status-badge.inactive:hover {
+  background: #374151;
+  box-shadow: 0 4px 12px rgba(75, 85, 99, 0.4);
+}
+
+/* Dark mode adjustments for item status badges */
+.dark .status-badge.lost {
+  background: linear-gradient(135deg, #f87171 0%, #ef4444 100%);
+  box-shadow: 0 2px 4px rgba(248, 113, 113, 0.3);
+}
+
+.dark .status-badge.lost:hover {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  box-shadow: 0 4px 12px rgba(248, 113, 113, 0.4);
+}
+
+.dark .status-badge.found {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%);
+  box-shadow: 0 2px 4px rgba(52, 211, 153, 0.3);
+}
+
+.dark .status-badge.found:hover {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 4px 12px rgba(52, 211, 153, 0.4);
+}
+
+.dark .status-badge.claimed {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+}
+
+.dark .status-badge.claimed:hover {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  box-shadow: 0 4px 12px rgba(251, 191, 36, 0.4);
+}
+
+.dark .status-badge.returned {
+  background: linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%);
+  box-shadow: 0 2px 4px rgba(167, 139, 250, 0.3);
+}
+
+.dark .status-badge.returned:hover {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  box-shadow: 0 4px 12px rgba(167, 139, 250, 0.4);
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(-10px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-10px); }
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.3s ease-in-out;
+}
+
+.animate-fade-in-left {
+  animation: fadeInLeft 0.3s ease-in-out;
+}
+
+.animate-fade-in-out {
+  animation: fadeInOut 3s ease-out forwards;
+}
