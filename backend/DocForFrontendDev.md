@@ -465,7 +465,7 @@ All API endpoints return error responses in the following format:
 - Example using `FormData` in JavaScript:
   ```javascript
   const formData = new FormData();
-  formData.append('file', fileInput.files[0]);
+  formData.append('image', fileInput.files[0]);
   formData.append('title', 'Lost Wallet');
   formData.append('description', 'Black leather wallet lost near the library.');
   fetch('/api/v1/items', {

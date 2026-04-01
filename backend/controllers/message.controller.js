@@ -83,7 +83,7 @@ exports.sendMessage = async (req, res) => {
     await conversation.save();
 
     const populatedMessage = await Message.findById(newMessage._id)
-      .populate('sender', 'name email')
+      .populate('sender', 'name email profilePicture')
       .lean();
 
     const io = req.app.get('io');

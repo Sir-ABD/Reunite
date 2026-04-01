@@ -33,10 +33,22 @@ const resetPasswordSchema = z.object({
   newPassword: z.string().min(6, 'New password must be at least 6 characters long'),
 });
 
+// Schema for checking 2FA token
+const twoFactorSchema = z.object({
+  token: z.string().length(6, '2FA token must be exactly 6 characters')
+});
+
+const finalizeLoginSchema = z.object({
+  userId: z.string(),
+  token: z.string().length(6, '2FA token must be exactly 6 characters')
+});
+
 module.exports = {
   registerSchema,
   loginSchema,
   forgotPasswordSchema,
   verifyOtpSchema,
   resetPasswordSchema,
+  twoFactorSchema,
+  finalizeLoginSchema
 };

@@ -152,3 +152,32 @@ exports.markAsRead = async (req, res) => {
     });
   }
 };
+
+// Get the count of unread notifications for the current user
+exports.getUnreadCount = async (req, res) => {
+  try {
+    if (!req.user?.id) {
+      return res.status(401).json({ 
+        error: 'Authentication required',
+        code: 'AUTH_REQUIRED' 
+      });
+    }
+
+    const count = await Notification.countDocuments({ 
+      userId: req.user.id, 
+      isRead: false 
+    });
+
+    return res.status(200).json({
+      success: true,
+      data: { count },
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error fetching unread count:', error);
+    return res.status(500).json({
+      error: 'Internal server error',
+      code: 'INTERNAL_ERROR'
+    });
+  }
+};

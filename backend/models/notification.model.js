@@ -23,8 +23,12 @@ const notificationSchema = new Schema({
   },
   type: {
     type: String,
-    enum: ['item_claimed', 'item_returned', 'new_message', 'conversation', 'other'], // Added 'conversation'
+    enum: ['item_claimed', 'item_returned', 'new_message', 'conversation', 'smartMatch', 'keeperAction', 'claimPending', 'claimApproved', 'other'],
     default: 'other',
+  },
+  metadata: {
+    type: Schema.Types.Mixed,
+    default: {},
   },
   isRead: {
     type: Boolean,

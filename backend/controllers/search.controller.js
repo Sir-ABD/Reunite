@@ -44,7 +44,7 @@ exports.assignKeeper = async (req, res) => {
 // Search for items with optional filters
 exports.searchItems = async (req, res) => {
   try {
-    const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search = '', status } = req.query;
+    const { page = 1, limit = 10, sortBy = 'createdAt', order = 'desc', search = '', status, category } = req.query;
     const skip = (page - 1) * limit;
 
     const pipeline = [];
@@ -61,16 +61,17 @@ exports.searchItems = async (req, res) => {
     });
     pipeline.push({ $unwind: '$categoryData' });
 
-    // Look up and unwind SubCategory
+    // Look up and unwind SubCategory (Optional lookup, use left join style if possible)
     pipeline.push({
       $lookup: {
-        from: 'subcategories', // Ensure this matches your collection name
+        from: 'subcategories', 
         localField: 'subCategory',
         foreignField: '_id',
         as: 'subCategoryData',
       },
     });
-    pipeline.push({ $unwind: '$subCategoryData' });
+    // Use preserveNullAndEmptyArrays since some items might not have a subcategory
+    pipeline.push({ $unwind: { path: '$subCategoryData', preserveNullAndEmptyArrays: true } });
 
     // Look up and unwind PostedBy
     pipeline.push({
@@ -88,15 +89,18 @@ exports.searchItems = async (req, res) => {
     if (status && status !== 'All' && ['Lost', 'Found', 'Claimed', 'Returned'].includes(status)) {
       matchConditions.status = status;
     }
+    if (category && category !== 'All') {
+      matchConditions['categoryData.name'] = category;
+    }
     if (search) {
       const searchRegex = { $regex: search, $options: 'i' };
       matchConditions.$or = [
         { title: searchRegex },
         { description: searchRegex },
-        { tags: searchRegex }, // Correctly searches an array of strings
+        { tags: searchRegex }, 
         { location: searchRegex },
         { 'categoryData.name': searchRegex },
-        { 'subCategoryData.name': searchRegex }, // Search by subcategory name
+        { 'subCategoryData.name': searchRegex }, 
       ];
     }
     pipeline.push({ $match: matchConditions });

@@ -36,7 +36,7 @@ const itemSchema = new Schema({
   }],
   status: {
     type: String,
-    enum: ['Lost', 'Found', 'Claimed', 'Returned'],
+    enum: ['Lost', 'Found', 'Claimed', 'ClaimPending', 'Returned'],
     required: [true, 'Status is required'],
     index: true,
   },
@@ -45,6 +45,10 @@ const itemSchema = new Schema({
     required: [true, 'Location is required'],
     minlength: 3,
     trim: true,
+  },
+  coordinates: {
+    lat: { type: Number, required: false },
+    lng: { type: Number, required: false }
   },
   image: {
     type: String,
@@ -71,12 +75,25 @@ const itemSchema = new Schema({
     ref: 'User',
     index: true,
   },
+  embedding: {
+    type: [Number],
+    default: [],
+  },
   qrCode: { type: String },
   qrCodeExpiresAt: { type: Date },
   claimOTP: { type: String },
   otpExpiresAt: { type: Date },
   isClaimed: { type: Boolean, default: false },
   isReturned: { type: Boolean, default: false },
+  claimApprovalPending: { type: Boolean, default: false },
+  meetingConfirmedByFinder: { type: Boolean, default: false },
+  meetingConfirmedByOwner: { type: Boolean, default: false },
+  keeperApproval: { type: Boolean, default: false },
+  matchedItemId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Item',
+    default: null,
+  },
   isActive: { type: Boolean, default: true }, // For soft deletion
 }, {
   timestamps: true,

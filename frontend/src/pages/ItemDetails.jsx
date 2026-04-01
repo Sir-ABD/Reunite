@@ -5,11 +5,16 @@ import { FaSearch, FaImage } from "react-icons/fa";
 import {
   getItemDetails,
   claimItem,
+  approveClaimRequest,
+  rejectClaimRequest,
   updateItem,
   assignKeeperToItem,
-  generateOTPForItem,
-  verifyOTPForItem,
+  confirmHandoff,
+  deleteUserItem,
+  confirmMeeting,
+  keeperApproveHandoff,
 } from "../services/itemService";
+import { getCategories } from "../services/categoryService";
 import { startConversation } from "../services/conversationService";
 import { toast } from "react-toastify";
 
@@ -60,9 +65,8 @@ function ItemDetails() {
     image: null,
   });
   const [removeImage, setRemoveImage] = useState(false);
+  const [categories, setCategories] = useState([]);
   const [isImageModalOpen, setIsImageModalOpen] = useState(false);
-  const [otp, setOtp] = useState("");
-  const [otpItemId, setOtpItemId] = useState(null);
 
   const fetchItem = React.useCallback(async () => {
     console.log("Fetching item - id:", id, "user:", user);
@@ -101,10 +105,20 @@ function ItemDetails() {
     }
   }, [id, user]);
 
+  const fetchCategories = React.useCallback(async () => {
+    try {
+      const response = await getCategories();
+      setCategories(response.data.categories || []);
+    } catch (err) {
+      console.error("Failed to load categories:", err);
+    }
+  }, []);
+
   useEffect(() => {
     console.log("Initial useEffect running - id:", id, "user:", user);
     fetchItem();
-  }, [id, user, fetchItem]);
+    fetchCategories();
+  }, [id, user, fetchItem, fetchCategories]);
 
   useEffect(() => {
     console.log(
@@ -166,6 +180,23 @@ function ItemDetails() {
       );
     } finally {
       setClaimLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (window.confirm("Are you sure you want to delete this item?")) {
+      setClaimLoading(true);
+      try {
+        await deleteUserItem(id);
+        toast.success("Item deleted successfully");
+        navigate("/dashboard");
+      } catch (err) {
+        toast.error(
+          "Failed to delete item: " + (err.response?.data?.message || err.message)
+        );
+      } finally {
+        setClaimLoading(false);
+      }
     }
   };
 
@@ -263,48 +294,70 @@ function ItemDetails() {
     }
   };
 
-  const handleGenerateOTP = async () => {
-    if (!user) return;
-    const isPoster = user.id === item?.postedBy?._id;
-    const isKeeper = user.id === item?.keeperId;
-    if (!isPoster && !isKeeper) {
-      toast.error("Only the poster or assigned keeper can generate OTP.");
-      return;
-    }
+  const handleConfirmHandoff = async () => {
+    if (!window.confirm("Are you sure you want to confirm this handoff? This will mark the item as returned.")) return;
     setClaimLoading(true);
     try {
-      const response = await generateOTPForItem(id);
-      setOtpItemId(id);
-      setOtp("");
-      toast.success(
-        `OTP generated successfully: ${response.data.otp}. Share this with the claimant.`
-      );
+      await confirmHandoff(id);
+      await fetchItem();
+      toast.success("Handoff confirmed successfully! Item marked as returned.");
     } catch (err) {
       toast.error(
-        "Failed to generate OTP: " +
-        (err.response?.data?.message || err.message)
+        "Failed to confirm handoff: " + (err.response?.data?.message || err.message)
       );
     } finally {
       setClaimLoading(false);
     }
   };
 
-  const handleVerifyOTP = async () => {
-    if (!otp.trim()) {
-      toast.error("Please enter the OTP.");
-      return;
-    }
+  const handleConfirmMeeting = async () => {
     setClaimLoading(true);
     try {
-      await verifyOTPForItem(id, { otp });
+      await confirmMeeting(id);
       await fetchItem();
-      toast.success("OTP verified successfully! Item marked as returned.");
-      setOtpItemId(null);
-      setOtp("");
+      toast.success("Meeting confirmed successfully!");
+    } catch(err) {
+      toast.error("Failed to confirm meeting: " + (err.response?.data?.message || err.message));
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const handleApproveHandoff = async () => {
+    setClaimLoading(true);
+    try {
+      await keeperApproveHandoff(id);
+      await fetchItem();
+      toast.success("Handoff approved! Item is now returned.");
+    } catch(err) {
+      toast.error("Failed to approve handoff: " + (err.response?.data?.message || err.message));
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const handleApproveClaim = async () => {
+    setClaimLoading(true);
+    try {
+      await approveClaimRequest(id);
+      await fetchItem();
+      toast.success("Claim approved! You can now proceed to handoff.");
     } catch (err) {
-      toast.error(
-        "Failed to verify OTP: " + (err.response?.data?.message || err.message)
-      );
+      toast.error("Failed to approve claim: " + (err.response?.data?.message || err.message));
+    } finally {
+      setClaimLoading(false);
+    }
+  };
+
+  const handleRejectClaim = async () => {
+    if (!window.confirm("Are you sure you want to reject this claim?")) return;
+    setClaimLoading(true);
+    try {
+      await rejectClaimRequest(id);
+      await fetchItem();
+      toast.success("Claim rejected. The item is available again.");
+    } catch (err) {
+      toast.error("Failed to reject claim: " + (err.response?.data?.message || err.message));
     } finally {
       setClaimLoading(false);
     }
@@ -312,6 +365,7 @@ function ItemDetails() {
 
   const isOwner = user && String(user.id) === String(item?.postedBy?._id);
   const isKeeper = user && String(user.id) === String(item?.keeperId);
+  const isAdminOrKeeper = user && (user.role === 'admin' || user.role === 'keeper');
   // const isClaimant = user && user.id === item?.claimedById;
   const isPosterOrKeeper =
     user &&
@@ -379,7 +433,7 @@ function ItemDetails() {
                       </div>
                       <div className="text-center">
                         <p className="text-gray-500 text-sm font-medium group-hover:text-gray-600 transition-colors duration-300">
-                          No Image Available
+                          No image available
                         </p>
                       </div>
                     </div>
@@ -413,21 +467,37 @@ function ItemDetails() {
                       <span className="font-medium" style={{ color: 'var(--color-text)' }}>Location:</span>{" "}
                       {item.location}
                     </p>
+                    {item.coordinates && item.coordinates.lat && item.coordinates.lng && (
+                      <p style={{ color: 'var(--color-text)' }}>
+                        <span className="font-medium" style={{ color: 'var(--color-text)' }}>Map:</span>{" "}
+                        <a 
+                          href={`https://www.google.com/maps/search/?api=1&query=${item.coordinates.lat},${item.coordinates.lng}`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-700 underline flex items-center gap-1 inline-flex"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
+                            <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                          </svg>
+                          View exact coordinates
+                        </a>
+                      </p>
+                    )}
                     <p style={{ color: 'var(--color-text)' }}>
-                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>Posted By:</span>{" "}
+                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>Posted by:</span>{" "}
                       {item.postedBy?.name || "Unknown"}
                     </p>
                     <p style={{ color: 'var(--color-text)' }}>
-                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>Posted On:</span>{" "}
+                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>Posted on:</span>{" "}
                       {new Date(item.createdAt).toLocaleDateString()}
                     </p>
                     <p style={{ color: 'var(--color-text)' }}>
                       <span className="font-medium" style={{ color: 'var(--color-text)' }}>Keeper:</span>{" "}
-                      {item.keeperName || "Not Assigned"}
+                      {item.keeperName || "Not assigned"}
                     </p>
                     <p style={{ color: 'var(--color-text)' }}>
-                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>Claimed By:</span>{" "}
-                      {item.claimedByName || "Not Claimed"}
+                      <span className="font-medium" style={{ color: 'var(--color-text)' }}>Claimed by:</span>{" "}
+                      {item.claimedByName || "Not claimed"}
                     </p>
                   </div>
                 </div>
@@ -444,12 +514,13 @@ function ItemDetails() {
                           className="w-full py-2 px-4 rounded-md transition-colors duration-200 font-medium text-sm shadow-md hover:shadow-lg"
                           style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
                         >
-                          Edit Item
+                          Edit item
                         </button>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        {!isOwner && !isKeeper && (
+                        {/* Claim item section for non-owners/non-keepers only when the item is marked as "Found" */}
+                        {!isOwner && !isKeeper && item?.status === "Found" && (
                           <button
                             onClick={handleClaim}
                             disabled={claimLoading || item.status === "Claimed"}
@@ -465,8 +536,8 @@ function ItemDetails() {
                             {claimLoading
                               ? "Processing..."
                               : item.status === "Claimed"
-                                ? "Already Claimed"
-                                : "Claim Item"}
+                                ? "Already claimed"
+                                : "Claim item"}
                           </button>
                         )}
                         <button
@@ -481,8 +552,18 @@ function ItemDetails() {
                             color: 'var(--color-bg)'
                           }}
                         >
-                          {conversationLoading ? "Processing..." : "Message Owner"}
+                          {conversationLoading ? "Processing..." : "Message owner"}
                         </button>
+                        {isAdminOrKeeper && (
+                          <button
+                            onClick={handleDelete}
+                            disabled={claimLoading}
+                            className="w-full py-2 px-4 rounded-md transition-colors duration-200 font-medium text-sm shadow-md hover:shadow-lg"
+                            style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
+                          >
+                            Delete item
+                          </button>
+                        )}
                       </div>
                     )}
                     {user && user.role === "keeper" && !item.keeperId && (
@@ -501,64 +582,118 @@ function ItemDetails() {
                         >
                           {claimLoading
                             ? "Processing..."
-                            : "Assign Myself as Keeper"}
+                            : "Assign myself as keeper"}
                         </button>
                       </div>
                     )}
-                    {isPosterOrKeeper && item.status === "Claimed" && (
-                      <div className="space-y-3">
-                        <button
-                          onClick={handleGenerateOTP}
-                          disabled={claimLoading}
-                          className={`w-full py-2 px-4 rounded-md text-white text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 ${claimLoading
-                            ? "opacity-50 cursor-not-allowed"
-                            : ""
-                            }`}
-                          style={{
-                            background: claimLoading ? 'var(--color-secondary)' : 'var(--color-accent)',
-                            color: 'var(--color-bg)'
-                          }}
-                        >
-                          {claimLoading ? "Processing..." : "Generate OTP"}
-                        </button>
+                    {item.status === 'Claimed' && isPosterOrKeeper && (
+                      <button
+                        onClick={handleConfirmHandoff}
+                        disabled={claimLoading}
+                        className={`w-full py-2 px-4 rounded-md text-white text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 ${claimLoading
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                          }`}
+                        style={{
+                          background: claimLoading ? 'var(--color-secondary)' : 'var(--color-accent)',
+                          color: 'var(--color-bg)'
+                        }}
+                      >
+                        {claimLoading ? "Processing..." : "Confirm Handoff (Mark as Returned)"}
+                      </button>
+                    )}
+                    
+                    {/* NEW: Keeper/Admin Approve/Reject Claim Request */}
+                    {isAdminOrKeeper && item.status === "ClaimPending" && (
+                      <div className="space-y-3 pt-4 border-t" style={{ borderColor: 'var(--color-secondary)' }}>
+                        <h3 className="text-sm font-bold mb-2 text-orange-600">Pending Claim Request</h3>
+                    
+                        <p className="text-xs mb-3" style={{ color: 'var(--color-text)' }}>
+                          A user has requested to claim this item. Please review and approve or reject.
+                        </p>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={handleApproveClaim}
+                            disabled={claimLoading}
+                            className={`flex-1 py-2 px-3 rounded-md text-white text-sm font-medium shadow-md transition-all duration-200 ${claimLoading ? 'opacity-50 cursor-not-allowed bg-gray-500' : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'}`}
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={handleRejectClaim}
+                            disabled={claimLoading}
+                            className={`flex-1 py-2 px-3 rounded-md text-white text-sm font-medium shadow-md transition-all duration-200 ${claimLoading ? 'opacity-50 cursor-not-allowed bg-gray-500' : 'bg-red-600 hover:bg-red-700 hover:shadow-lg'}`}
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
                       </div>
                     )}
-                    {otpItemId === id && isPosterOrKeeper && (
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="text"
-                          value={otp}
-                          onChange={(e) => setOtp(e.target.value)}
-                          placeholder="Enter OTP to mark as returned"
-                          className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm"
-                          style={{
-                            border: '1px solid var(--color-secondary)',
-                            background: 'var(--color-bg)',
-                            color: 'var(--color-text)'
-                          }}
-                        />
-                        <button
-                          onClick={handleVerifyOTP}
-                          disabled={claimLoading}
-                          className={`py-2 px-4 rounded-md text-white text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 ${claimLoading
-                            ? "opacity-50 cursor-not-allowed"
-                            : ""
-                            }`}
-                          style={{
-                            background: claimLoading ? 'var(--color-secondary)' : 'var(--color-accent)',
-                            color: 'var(--color-bg)'
-                          }}
-                        >
-                          {claimLoading ? "Verifying..." : "Mark as Returned"}
-                        </button>
+
+                    {item.status === "Claimed" && item.keeperId && !item.keeperApproval && (
+                      <div className="space-y-3 pt-4 border-t" style={{ borderColor: 'var(--color-secondary)' }}>
+                        <h3 className="text-sm font-bold mb-2 text-amber-600">Handoff Process</h3>
+                        
+                        {/* Finder/Owner Confirm button */}
+                        {user && (String(user.id) === String(item.postedBy?._id) || String(user.id) === String(item.claimedById)) && (
+                          <button
+                            onClick={handleConfirmMeeting}
+                            disabled={claimLoading || (String(user.id) === String(item.postedBy?._id) ? item.meetingConfirmedByOwner : item.meetingConfirmedByFinder)}
+                            className={`w-full py-2 px-4 rounded-md text-white text-sm font-medium shadow-md transition-all duration-200 ${(String(user.id) === String(item.postedBy?._id) ? item.meetingConfirmedByOwner : item.meetingConfirmedByFinder) || claimLoading ? 'opacity-50 cursor-not-allowed bg-gray-500' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg'}`}
+                          >
+                            {(String(user.id) === String(item.postedBy?._id) ? item.meetingConfirmedByOwner : item.meetingConfirmedByFinder) ? "Meeting Confirmed ✓" : "Confirm Meeting"}
+                          </button>
+                        )}
+
+                        {/* Keeper Approve button */}
+                        {isAdminOrKeeper && (
+                          <div className="mt-2 text-xs font-semibold p-3 rounded-md shadow-inner" style={{ background: 'var(--color-bg)', color: 'var(--color-text)', border: '1px solid var(--color-secondary)' }}>
+                            <div className="mb-2 text-sm">Required Confirmations:</div>
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="opacity-80">Finder:</span> 
+                              <span>{item.meetingConfirmedByFinder ? '✅ Confirmed' : '⏳ Pending'}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="opacity-80">Owner:</span> 
+                              <span>{item.meetingConfirmedByOwner ? '✅ Confirmed' : '⏳ Pending'}</span>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {(isKeeper || user.role === 'admin') && (
+                          <button
+                            onClick={handleApproveHandoff}
+                            disabled={claimLoading || !item.meetingConfirmedByFinder || !item.meetingConfirmedByOwner}
+                            className={`w-full mt-2 py-2 px-4 rounded-md text-white text-sm font-medium shadow-md transition-all duration-200 ${(!item.meetingConfirmedByFinder || !item.meetingConfirmedByOwner || claimLoading) ? 'opacity-50 cursor-not-allowed bg-gray-500' : 'bg-green-600 hover:bg-green-700 hover:shadow-lg'}`}
+                          >
+                            {claimLoading ? "Processing..." : "Approve Handoff"}
+                          </button>
+                        )}
                       </div>
+                    )}
+                    
+                    {(item.status === 'Claimed') && isPosterOrKeeper && (
+                      <button
+                        onClick={handleConfirmHandoff}
+                        disabled={claimLoading}
+                        className={`w-full py-2 px-4 rounded-md text-white text-sm font-medium shadow-md hover:shadow-lg transition-all duration-200 ${claimLoading
+                          ? "opacity-50 cursor-not-allowed"
+                          : ""
+                          }`}
+                        style={{
+                          background: claimLoading ? 'var(--color-secondary)' : 'var(--color-accent)',
+                          color: 'var(--color-bg)'
+                        }}
+                      >
+                        {claimLoading ? "Processing..." : "Confirm Handoff (Mark as Returned)"}
+                      </button>
                     )}
                     <button
                       onClick={handleShare}
                       className="w-full py-2 px-4 rounded-md transition-colors duration-200 font-medium text-sm shadow-md hover:shadow-lg"
                       style={{ background: 'var(--color-primary)', color: 'var(--color-bg)' }}
                     >
-                      Share Item
+                      Share item
                     </button>
                   </div>
                 </div>
@@ -584,7 +719,7 @@ function ItemDetails() {
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity duration-300">
                       <p className="text-white text-sm font-medium">
-                        Current Image
+                        Current image
                       </p>
                     </div>
                   </div>
@@ -615,7 +750,7 @@ function ItemDetails() {
                       onChange={handleEditChange}
                       className="mr-2 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <span className="text-sm" style={{ color: 'var(--color-text)' }}>Remove Image</span>
+                    <span className="text-sm" style={{ color: 'var(--color-text)' }}>Remove image</span>
                   </label>
                 </div>
               </div>
@@ -677,20 +812,27 @@ function ItemDetails() {
                     >
                       Category
                     </label>
-                    <input
-                      type="text"
+                    <select
                       id="category"
                       name="category"
                       value={editFormData.category}
                       onChange={handleEditChange}
-                      className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className={`w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${!isAdminOrKeeper ? 'opacity-75 cursor-not-allowed' : ''}`}
                       style={{
                         border: '1px solid var(--color-secondary)',
                         background: 'var(--color-bg)',
                         color: 'var(--color-text)'
                       }}
                       required
-                    />
+                      disabled={!isAdminOrKeeper}
+                    >
+                      <option value="">Select a category</option>
+                      {categories.map((cat) => (
+                        <option key={cat._id} value={cat.name}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label
@@ -705,13 +847,14 @@ function ItemDetails() {
                       name="status"
                       value={editFormData.status}
                       onChange={handleEditChange}
-                      className="w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className={`w-full p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm ${!isAdminOrKeeper ? 'opacity-75 cursor-not-allowed' : ''}`}
                       style={{
                         border: '1px solid var(--color-secondary)',
                         background: 'var(--color-bg)',
                         color: 'var(--color-text)'
                       }}
                       required
+                      disabled={!isAdminOrKeeper}
                     >
                       <option value="Lost">Lost</option>
                       <option value="Found">Found</option>

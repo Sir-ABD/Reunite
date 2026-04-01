@@ -2,6 +2,8 @@ import { createContext, useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import io from 'socket.io-client';
 import { toast } from 'react-toastify';
+import { getUnreadCount } from '../services/notificationService';
+import { getUnreadMessagesCount } from '../services/conversationService';
 
 export const AuthContext = createContext();
 
@@ -14,12 +16,34 @@ export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem('token') || null);
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
   const socketRef = useRef(null);
 
   useEffect(() => {
     console.log('Initializing auth state');
     setLoading(false);
   }, []);
+
+  useEffect(() => {
+    if (user && token) {
+      getUnreadCount()
+        .then((res) => {
+          if (res.data && typeof res.data.count !== 'undefined') {
+            setUnreadCount(res.data.count);
+          }
+        })
+        .catch(console.error);
+
+      getUnreadMessagesCount()
+        .then((res) => {
+          if (res.data && typeof res.data.unreadMessagesCount !== 'undefined') {
+            setUnreadMessagesCount(res.data.unreadMessagesCount);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [user, token]);
 
   useEffect(() => {
     if (import.meta.env.DEV) console.log('Token updated:', token);
@@ -61,7 +85,7 @@ export function AuthProvider({ children }) {
       socketRef.current = io(backendUrl, {
         path: '/socket.io',
         query: { userId: user.id },
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         upgrade: true,
         reconnection: true,
         reconnectionAttempts: 10,
@@ -97,6 +121,7 @@ export function AuthProvider({ children }) {
         const notifType = notification.type || 'info';
         const message = notification.message || 'New notification received';
         setNotifications((prev) => [...prev, { id: notifId, message, type: notifType }]);
+        setUnreadCount((prev) => prev + 1);
         toast[notifType === 'error' ? 'error' : 'info'](message, {
           autoClose: 5000,
           onClose: () => removeNotification(notifId),
@@ -105,6 +130,10 @@ export function AuthProvider({ children }) {
 
       socketRef.current.on('receiveMessage', (message) => {
         console.log('Received message:', message);
+        // Only increment if we are not currently viewing that conversation.
+        // Actually, for simplicity at Context level, increment overall unread message count.
+        // The Messages view will reset or decrement it when viewing.
+        setUnreadMessagesCount((prev) => prev + 1);
       });
 
       socketRef.current.on('errorMessage', (errorMsg) => {
@@ -181,6 +210,8 @@ export function AuthProvider({ children }) {
     setNotifications((prev) => prev.filter((n) => n.id !== id));
   };
 
+  const isAdmin = user?.role === 'admin';
+
   const value = {
     user,
     setUser, // Add setUser to context value
@@ -188,8 +219,13 @@ export function AuthProvider({ children }) {
     login,
     logout,
     loading,
+    isAdmin,
     socket: socketRef.current,
     notifications,
+    unreadCount,
+    setUnreadCount,
+    unreadMessagesCount,
+    setUnreadMessagesCount,
     addNotification,
     removeNotification,
   };

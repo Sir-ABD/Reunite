@@ -35,7 +35,7 @@ module.exports = (server) => {
       credentials: true,
       allowedHeaders: ['Content-Type', 'Authorization', 'Upgrade', 'Connection'],
     },
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'],
     upgradeTimeout: 15000,
     pingTimeout: 30000,
     pingInterval: 30000,
@@ -108,43 +108,17 @@ module.exports = (server) => {
           return;
         }
 
-        const claimant = conversation.participants.find(p => p._id.toString() === senderId);
-        if (!claimant) {
-          console.warn('Claimant not found in participants');
+        const sender = conversation.participants.find(p => p._id.toString() === senderId);
+        if (!sender) {
+          console.warn('Sender not found in participants');
           return;
         }
-
-        const exchangeLocation = 'Your exchange location here'; // Replace with dynamic data
-        await sendEmail(
-          claimant.email,
-          'Claim Notification',
-          'claimNotification',
-          {
-            name: claimant.name,
-            itemTitle: conversation.item ? conversation.item.title : 'Unknown Item',
-            exchangeLocation,
-          }
-        );
-
-        const notificationData = {
-          userId: claimant._id,
-          message: `Your claim for ${conversation.item ? conversation.item.title : 'an item'} has been noted. Exchange at ${exchangeLocation}.`,
-          type: 'conversation',
-          isRead: false,
-        };
-        if (conversation.item) {
-          notificationData.itemId = conversation.item._id;
-        }
-
-        const notification = new Notification(notificationData);
-        await notification.save();
-        io.to(claimant._id.toString()).emit('newNotification', notification);
 
         const recipients = conversation.participants.filter(p => p._id.toString() !== senderId);
         for (const recipient of recipients) {
           const recipientNotification = new Notification({
             userId: recipient._id,
-            message: `A new message from ${claimant.name} in conversation ${conversationId}`,
+            message: `A new message from ${sender.name} in conversation ${conversationId}`,
             type: 'conversation',
             isRead: false,
             itemId: conversation.item ? conversation.item._id : undefined,

@@ -22,7 +22,7 @@ function UserDetail() {
         setUser(userResponse.data.user);
 
         // Fetch items posted by the user with pagination
-        const itemsResponse = await getUserItems(id, currentPage, limit); // Assume getUserItems accepts page and limit
+        const itemsResponse = await getUserItems(id, { page: currentPage, limit }); // Corrected: pass params as object
         setItems(itemsResponse.data.items || []);
         setTotalPages(itemsResponse.data.pagination?.totalPages || 1);
       } catch (err) {
@@ -52,24 +52,65 @@ function UserDetail() {
       <div className="container mx-auto p-4 sm:p-6 lg:p-8">
         <h1 className="text-2xl sm:text-3xl font-bold mb-6" style={{ color: 'var(--color-text)' }}>User Details</h1>
         <div className="p-4 sm:p-6 rounded-lg shadow-md" style={{ background: 'var(--color-secondary)', color: 'var(--color-text)' }}>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Name</h2>
-              <p>{user.name}</p>
+          {/* User Profile Header */}
+          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 mb-8 pb-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-500 flex-shrink-0 shadow-lg">
+              {user.profilePicture ? (
+                <img 
+                  src={user.profilePicture} 
+                  alt={user.name} 
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-400">
+                  <span className="text-4xl font-bold">{user.name?.charAt(0).toUpperCase()}</span>
+                </div>
+              )}
             </div>
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Email</h2>
-              <p>{user.email}</p>
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Role</h2>
-              <p>{user.role}</p>
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Joined</h2>
-              <p>{new Date(user.createdAt).toLocaleString()}</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-4 flex-grow w-full">
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Name</h2>
+                <p>{user.name}</p>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Email</h2>
+                <p>{user.email}</p>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Role</h2>
+                <p className="capitalize">{user.role}</p>
+              </div>
+              {user.role === 'keeper' && (
+                <>
+                  <div>
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Assigned Items</h2>
+                    <p className="flex items-center gap-2">
+                      <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">{user.assignedItemsCount || 0}</span>
+                      <span className="text-sm font-medium opacity-60">items currently assigned</span>
+                    </p>
+                  </div>
+                  <div>
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Successful Returns</h2>
+                    <p className="flex items-center gap-2">
+                      <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{user.successfulReturnsCount || 0}</span>
+                      <span className="text-sm font-medium opacity-60">items securely handed off</span>
+                    </p>
+                  </div>
+                </>
+              )}
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Joined</h2>
+                <p>{new Date(user.createdAt).toLocaleString()}</p>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--color-text)' }}>Status</h2>
+                <span className={`px-2 py-1 rounded text-xs font-semibold ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {user.isActive ? 'Active' : 'Inactive'}
+                </span>
+              </div>
             </div>
           </div>
+
           {/* Items Posted by User */}
           <div className="mt-6">
             <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text)' }}>Items Posted</h2>
@@ -117,14 +158,14 @@ function UserDetail() {
                 )}
               </div>
             ) : (
-              <p>No items posted by this user.</p>
+              <p className="py-4 text-center text-gray-500">No items posted by this user.</p>
             )}
           </div>
         </div>
         <div className="mt-6">
           <Link
             to="/admin"
-            className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600 transition-colors"
+            className="bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600 transition-colors shadow-sm"
           >
             Back to Dashboard
           </Link>

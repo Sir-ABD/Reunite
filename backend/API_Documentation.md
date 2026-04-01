@@ -660,14 +660,10 @@ This documentation covers all endpoints in the Lost and Found Platform, providin
 - **Description**: Updates the authenticated user's profile.
 - **Headers**:
   - `Authorization: Bearer <token>`
-- **Request Body**:
-  ```json
-  {
-  "name": "string", // optional
-  "email": "string", // optional
-  "password": "string" // optional
-  }
-  ```
+- **Request Body** (multipart/form-data):
+  - `name`: string (optional)
+  - `email`: string (optional)
+  - `image`: file (optional, for profile picture)
 - **Response (Success)**:
   ```json
   {

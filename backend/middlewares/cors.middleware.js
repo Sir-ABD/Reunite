@@ -11,6 +11,11 @@ const corsOptions = {
       callback(null, true);
       return;
     }
+    // If wildcard '*' is in allowed origins, allow everything
+    if (allowedOrigins.includes('*')) {
+      callback(null, true);
+      return;
+    }
     const normalizedOrigin = origin.replace(/\/$/, ''); // Remove trailing slash
     if (allowedOrigins.includes(normalizedOrigin)) {
       callback(null, true);

@@ -14,14 +14,25 @@ const isAdminOrAuthorized = (req, res, next) => {
 };
 
 // Get a list of available keepers
-router.get('/', authMiddleware.authenticate, isAdminOrAuthorized, keeperController.getKeepers);
+router.get('/', authMiddleware.authenticate, keeperController.getKeepers);
+
+// Get items assigned to the keeper
+router.get('/assigned-items', authMiddleware.authenticate, isAdminOrAuthorized, keeperController.getAssignedItems);
 
 // Assign a found item to a keeper
 router.post('/:id/assign-keeper', 
   authMiddleware.authenticate, 
   isAdminOrAuthorized, 
-  validate(idSchema), 
+  validate(idSchema, 'params'), 
   keeperController.assignKeeper
+);
+
+// Facilitate meeting
+router.post('/items/:id/facilitate-meeting',
+  authMiddleware.authenticate, 
+  isAdminOrAuthorized, 
+  validate(idSchema, 'params'), 
+  keeperController.facilitateMeeting
 );
 
 module.exports = router;

@@ -29,7 +29,15 @@ function Profile() {
   const [profileForm, setProfileForm] = useState({
     name: user?.name || '',
     email: user?.email || '',
+    profilePicture: null,
+    removeProfilePicture: false,
   });
+  const [profilePicturePreview, setProfilePicturePreview] = useState(user?.profilePicture || null);
+
+  const handleRemovePicture = () => {
+    setProfileForm((prev) => ({ ...prev, profilePicture: null, removeProfilePicture: true }));
+    setProfilePicturePreview(null);
+  };
 
   // Toggle states for forms
   const [isFormOpen, setIsFormOpen] = useState(null);
@@ -40,6 +48,8 @@ function Profile() {
     email: user?.email || '',
     role: user?.role || 'user',
   };
+
+  const userInitial = user?.name?.charAt(0).toUpperCase() || 'U';
 
   useEffect(() => {
     console.log('Profile component - Current user:', user, 'Token:', token);
@@ -55,8 +65,18 @@ function Profile() {
   };
 
   const handleProfileChange = (e) => {
-    const { name, value } = e.target;
-    setProfileForm((prev) => ({ ...prev, [name]: value }));
+    const { name, value, files } = e.target;
+    if (name === 'profilePicture') {
+      const file = files[0];
+      setProfileForm((prev) => ({ ...prev, [name]: file, removeProfilePicture: false }));
+      if (file) {
+        const reader = new FileReader();
+        reader.onloadend = () => setProfilePicturePreview(reader.result);
+        reader.readAsDataURL(file);
+      }
+    } else {
+      setProfileForm((prev) => ({ ...prev, [name]: value }));
+    }
   };
 
   const togglePasswordVisibility = (field) => {
@@ -101,10 +121,16 @@ function Profile() {
       }
 
       console.log('Sending profile update:', profileForm, 'Token:', token);
-      const response = await updateUserProfile({
-        name: profileForm.name,
-        email: profileForm.email,
-      });
+      const formData = new FormData();
+      formData.append('name', profileForm.name);
+      if (profileForm.profilePicture) {
+        formData.append('image', profileForm.profilePicture);
+      }
+      if (profileForm.removeProfilePicture) {
+        formData.append('removeProfilePicture', 'true');
+      }
+
+      const response = await updateUserProfile(formData);
       console.log('API Response:', response);
 
       // Handle backend response structure
@@ -118,7 +144,13 @@ function Profile() {
 
       toast.success('Profile updated successfully!');
       setUser({ ...user, ...updatedUser }); // Update AuthContext
-      setProfileForm({ name: updatedUser.name, email: updatedUser.email }); // Sync form
+      setProfileForm({ 
+        name: updatedUser.name, 
+        email: updatedUser.email, 
+        profilePicture: null,
+        removeProfilePicture: false
+      }); // Sync form
+      setProfilePicturePreview(updatedUser.profilePicture || null);
     } catch (err) {
       console.error('Profile Update Error:', err);
       const errorMessage = err.response?.data?.error || err.message;
@@ -171,10 +203,32 @@ function Profile() {
 
           {/* Read-Only User Details */}
           <div className="p-6 rounded-lg shadow-md mb-6" style={{ background: 'var(--color-secondary)', color: 'var(--color-text)' }}>
+            <div className="flex flex-col items-center mb-6">
+              <div className="relative group">
+                <div className="w-32 h-32 rounded-full overflow-hidden border-4 border-blue-500 bg-gray-200 flex items-center justify-center relative">
+                  {user?.profilePicture ? (
+                    <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-4xl font-bold" style={{ color: 'var(--color-primary)' }}>{userInitial}</span>
+                  )}
+                </div>
+                {/* Edit Icon Overlay */}
+                <button
+                  onClick={() => toggleForm('profile')}
+                  className="absolute bottom-1 right-1 bg-blue-600 text-white p-2 rounded-full shadow-lg hover:bg-blue-700 transition-all duration-200 border-2 border-white"
+                  title="Change Profile Picture"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-2xl font-bold">{displayData.name}</p>
+              <p className="text-sm opacity-75">{displayData.role}</p>
+            </div>
             <div className="space-y-4">
-              <p className="text-lg sm:text-xl" style={{ color: 'var(--color-text)' }}><strong>Name:</strong> {displayData.name}</p>
-              <p className="text-lg sm:text-xl" style={{ color: 'var(--color-text)' }}><strong>Email:</strong> {displayData.email}</p>
-              <p className="text-lg sm:text-xl" style={{ color: 'var(--color-text)' }}><strong>Role:</strong> {displayData.role}</p>
+              <p className="text-lg" style={{ color: 'var(--color-text)' }}><strong>Name:</strong> {displayData.name}</p>
+              <p className="text-lg" style={{ color: 'var(--color-text)' }}><strong>Email:</strong> {displayData.email}</p>
             </div>
             <div className="mt-6 flex flex-col sm:flex-row gap-4">
               <Button
@@ -228,16 +282,43 @@ function Profile() {
                   />
                 </div>
                 <div>
-                  <label htmlFor="email" className="block text-sm font-medium" style={{ color: 'var(--color-text)' }}>Email:</label>
+                  <label htmlFor="email" className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>Email (Read Only):</label>
                   <Input
                     id="email"
-                    label=""
                     name="email"
                     type="email"
                     value={profileForm.email}
-                    onChange={handleProfileChange}
-                    required
+                    readOnly
+                    className="opacity-75 cursor-not-allowed"
                   />
+                </div>
+                <div>
+                  <label htmlFor="profilePicture" className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text)' }}>Profile Picture:</label>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center gap-4">
+                      {profilePicturePreview && (
+                        <div className="relative">
+                          <img src={profilePicturePreview} alt="Preview" className="w-12 h-12 rounded-full object-cover border" />
+                          <button
+                            type="button"
+                            onClick={handleRemovePicture}
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 focus:outline-none shadow-sm"
+                            title="Remove Photo"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        id="profilePicture"
+                        name="profilePicture"
+                        accept="image/*"
+                        onChange={handleProfileChange}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
                 </div>
                 <div className="flex gap-4">
                   <Button type="submit" disabled={loading} className="w-full py-2 px-4 rounded-md transition-colors" style={{ background: 'var(--color-primary)', color: 'var(--color-bg)' }}>

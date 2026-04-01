@@ -20,4 +20,11 @@ router.get(
   conversationController.getConversations
 );
 
+// Get the count of unread messages
+router.get(
+  '/unread-count',
+  authMiddleware.authenticate,
+  conversationController.getUnreadMessagesCount
+);
+
 module.exports = router;

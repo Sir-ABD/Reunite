@@ -14,6 +14,8 @@ export const createItem = (data) => {
 };
 export const getItemDetails = (itemId) => api.get(`/items/${itemId}`);
 export const claimItem = (itemId) => api.post(`/items/${itemId}/claim`);
+export const approveClaimRequest = (itemId) => api.post(`/items/${itemId}/approve-claim`);
+export const rejectClaimRequest = (itemId) => api.post(`/items/${itemId}/reject-claim`);
 export const updateItem = (itemId, data) => {
   const config = {
     headers: {
@@ -30,5 +32,14 @@ export const markItemAsReturned = (itemId) => api.post(`/items/${itemId}/return`
 export const assignKeeperToItem = (itemId, data) => api.post(`/items/${itemId}/assign-keeper`, data);
 export const generateQRCodeForItem = (itemId) => api.post(`/items/${itemId}/generate-qr`);
 export const scanQRCodeForItem = (itemId, data) => api.post(`/items/${itemId}/scan-qr`, data);
-export const generateOTPForItem = (itemId) => api.post(`/items/${itemId}/generate-otp`);
-export const verifyOTPForItem = (itemId, data) => api.post(`/items/${itemId}/verify-otp`, data);
+export const confirmHandoff = (itemId) => api.post(`/items/${itemId}/confirm-handoff`);
+export const confirmMeeting = (itemId) => api.post(`/items/${itemId}/confirm-meeting`);
+export const keeperApproveHandoff = (itemId) => api.post(`/items/${itemId}/approve-handoff`);
+export const improveText = (data) => {
+  const config = {
+    headers: {
+      Authorization: `${localStorage.getItem('token')}`,
+    },
+  };
+  return api.post('/items/improve-text', data, config);
+};

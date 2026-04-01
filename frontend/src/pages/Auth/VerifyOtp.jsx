@@ -1,3 +1,4 @@
+// src/pages/Auth/VerifyOtp.jsx
 import { useState, useEffect, useContext } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../../context/AuthContext';
@@ -6,7 +7,10 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 import Loader from '../../components/common/Loader';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
-import { toast } from 'react-toastify';
+import { FiMail, FiLock, FiShield } from 'react-icons/fi';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { motion, AnimatePresence } from 'framer-motion';
 
 function VerifyOtp() {
   const [otp, setOtp] = useState('');
@@ -20,6 +24,8 @@ function VerifyOtp() {
   const isForgot = searchParams.get('forgot') === 'true';
   const navigate = useNavigate();
   const { login: setAuth } = useContext(AuthContext);
+
+  const bannerUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1').replace('/api/v1', '') + '/uploads/fudbanner.png';
 
   useEffect(() => {
     if (!email) {
@@ -55,27 +61,17 @@ function VerifyOtp() {
       if (response.status === 200) {
         if (isForgot) {
           await resetPassword({ email, newPassword });
-          toast.success('Password reset successfully. Redirecting to login...');
-          setTimeout(() => navigate('/login'), 2000);
+          toast.success('Password reset successfully!');
+          setTimeout(() => navigate('/login'), 1500);
         } else {
-          // Registration verification successful
           setAuth(response.data.authorization, response.data.user);
           localStorage.setItem('token', response.data.authorization);
-          localStorage.setItem('user', JSON.stringify(response.data.user));
-          toast.success('Account verified and activated. Redirecting to dashboard...');
-          navigate('/dashboard');
+          toast.success('Account activated!');
+          setTimeout(() => navigate('/home'), 500);
         }
       }
     } catch (err) {
-      const errorMsg =
-        err.response?.status === 400
-          ? err.response?.data?.message || 'Invalid or expired OTP'
-          : err.response?.status === 404
-          ? 'User not found'
-          : err.response?.status === 500
-          ? 'Server error, please try again later'
-          : 'An unexpected error occurred';
-      toast.error(errorMsg);
+      toast.error(err.response?.data?.message || 'Invalid or expired OTP');
     } finally {
       setLoading(false);
     }
@@ -87,7 +83,7 @@ function VerifyOtp() {
       await forgotPassword({ email });
       toast.success('New OTP sent to your email.');
     } catch (err) {
-      toast.error('Failed to resend OTP. Please try again.');
+      toast.error('Failed to resend OTP.');
     } finally {
       setLoading(false);
     }
@@ -99,110 +95,156 @@ function VerifyOtp() {
   if (!email) return <Loader />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 animate-fade-in-down" style={{ background: 'var(--color-bg)' }}>
-      <div className="w-full max-w-md p-8 rounded-xl shadow-lg border transform transition-all duration-500 hover:shadow-2xl" style={{ background: 'var(--color-secondary)', color: 'var(--color-text)', borderColor: 'var(--color-secondary)' }}>
-        <h2 className="text-3xl font-bold text-center mb-6 animate-fade-in-down" style={{ color: 'var(--color-text)' }}>
-          {isForgot ? 'Verify OTP & Reset Password' : 'Verify OTP'}
-        </h2>
+    <div className="min-h-screen relative flex items-center justify-center p-4 overflow-hidden selection:bg-blue-500/30">
+      <ToastContainer position="top-right" theme="dark" />
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="animate-fade-in-left" style={{ animationDelay: '0.1s' }}>
-            <label htmlFor="otp" className="block text-sm font-medium" style={{ color: 'var(--color-text)' }}>OTP</label>
+      {/* Dynamic Background Banner */}
+      <div className="absolute inset-0 z-0 bg-[#0a0a0c]">
+        <img 
+          src={bannerUrl} 
+          alt="Banner" 
+          className="w-full h-full object-cover opacity-60 mix-blend-overlay"
+          onError={(e) => {
+            e.target.src = "/assets/fud_main_gate.png";
+          }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/60 via-[#0a0a0c]/80 to-[#0a0a0c] backdrop-blur-[2px]" />
+      </div>
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        className="relative z-10 w-full max-w-lg bg-[#121216]/80 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-8 md:p-12 shadow-[0_0_50px_rgba(0,0,0,0.5)] overflow-hidden"
+      >
+        <div className="text-center mb-10">
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="inline-flex items-center justify-center w-16 h-16 bg-white/5 rounded-2xl mb-6 border border-white/10 shadow-xl"
+          >
+             <FiShield className="text-3xl text-blue-500" />
+          </motion.div>
+          <motion.h1 
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-3xl font-black text-white tracking-tight mb-2"
+          >
+            {isForgot ? 'Secure Reset' : 'Account Security'}
+          </motion.h1>
+          <motion.p 
+            initial={{ y: -10, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="text-white/40 font-medium text-sm px-4"
+          >
+            We've sent a 6-digit code to <span className="text-blue-400">{email}</span>. Please verify it to continue.
+          </motion.p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-6" autoComplete="off">
+          <div className="space-y-2">
+            <label className="text-xs font-bold text-white/30 uppercase tracking-widest ml-1">OTP Code</label>
             <Input
-              id="otp"
               type="text"
+              name="otp-verification-code"
+              maxLength="6"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              placeholder="Enter 6-digit OTP"
-              className="mt-2 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 shadow-sm disabled:opacity-50"
+              placeholder="000 000"
+              className="text-center text-3xl font-black tracking-[0.5em] h-16 bg-white/[0.03] border-white/10 text-white rounded-2xl focus:bg-white/[0.06] transition-all"
               disabled={loading}
-              aria-label="Enter OTP"
+              autoFocus
+              autoComplete="one-time-code"
             />
           </div>
-          {isForgot && (
-            <>
-              <div className="relative animate-fade-in-left" style={{ animationDelay: '0.2s' }}>
-                <label htmlFor="new-password" className="block text-sm font-medium" style={{ color: 'var(--color-text)' }}>New Password</label>
-                <Input
-                  id="new-password"
-                  type={showNewPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  className="mt-2 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 shadow-sm disabled:opacity-50 pr-12"
-                  disabled={loading}
-                  aria-label="Enter new password"
-                />
-                <button
-                  type="button"
-                  onClick={toggleNewPasswordVisibility}
-                  className="absolute inset-y-0 right-0 flex items-center justify-center w-12 h-full focus:outline-none mt-4"
-                  style={{ color: 'var(--color-accent)' }}
-                  disabled={loading}
-                  aria-label="Toggle new password visibility"
-                >
-                  {showNewPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
-                </button>
-              </div>
-              <div className="relative animate-fade-in-left" style={{ animationDelay: '0.3s' }}>
-                <label htmlFor="confirm-password" className="block text-sm font-medium" style={{ color: 'var(--color-text)' }}>Confirm Password</label>
-                <Input
-                  id="confirm-password"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="mt-2 w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all duration-200 shadow-sm disabled:opacity-50 pr-12"
-                  disabled={loading}
-                  aria-label="Confirm new password"
-                />
-                <button
-                  type="button"
-                  onClick={toggleConfirmPasswordVisibility}
-                  className="absolute inset-y-0 right-0 flex items-center justify-center w-12 h-full focus:outline-none mt-4"
-                  style={{ color: 'var(--color-accent)' }}
-                  disabled={loading}
-                  aria-label="Toggle confirm password visibility"
-                >
-                  {showConfirmPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
-                </button>
-              </div>
-            </>
-          )}
-          <div className="animate-fade-in-left" style={{ animationDelay: '0.4s' }}>
-            <Button
-              type="submit"
-              className={`w-full py-3 rounded-lg text-sm font-semibold text-white transition-all duration-200 shadow-md ${
-                loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 hover:shadow-lg'
-              }`}
+
+          <AnimatePresence>
+            {isForgot && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="space-y-4 pt-2"
+              >
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-white/30 uppercase tracking-widest ml-1">New Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showNewPassword ? 'text' : 'password'}
+                      name="new-password-field"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-white/[0.03] border-white/10 text-white h-12 rounded-xl pr-12"
+                      disabled={loading}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={toggleNewPasswordVisibility}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white"
+                    >
+                      {showNewPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-white/30 uppercase tracking-widest ml-1">Confirm Password</label>
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      name="confirm-password-field"
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-white/[0.03] border-white/10 text-white h-12 rounded-xl pr-12"
+                      disabled={loading}
+                      autoComplete="new-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={toggleConfirmPasswordVisibility}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-white"
+                    >
+                      {showConfirmPassword ? <FaEyeSlash size={16} /> : <FaEye size={16} />}
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <Button
+            type="submit"
+            className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black text-lg hover:bg-blue-500 shadow-xl shadow-blue-500/10 active:scale-[0.98] transition-all"
+            disabled={loading}
+          >
+            {loading ? (isForgot ? "Updating..." : "Verifying...") : (isForgot ? "Reset Password" : "Verify OTP")}
+          </Button>
+
+          <div className="text-center pt-2">
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              className="text-xs font-bold text-blue-500 hover:text-blue-400 uppercase tracking-widest disabled:opacity-50"
               disabled={loading}
             >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin h-5 w-5 mr-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  {isForgot ? 'Resetting...' : 'Verifying...'}
-                </span>
-              ) : (
-                isForgot ? 'Reset Password' : 'Verify OTP'
-              )}
-            </Button>
+              Resend Code
+            </button>
           </div>
         </form>
-        <p className="mt-4 text-sm text-center animate-fade-in-left" style={{ animationDelay: '0.5s', color: 'var(--color-text)' }}>
-          Didn't receive an OTP?{' '}
-          <button
-            onClick={handleResendOtp}
-            className="text-blue-600 hover:text-blue-800 font-medium underline transition-colors duration-200"
-            disabled={loading}
-            aria-label="Resend OTP"
-          >
-            Resend OTP
-          </button>
-        </p>
-      </div>
+
+        <div className="mt-10 pt-6 border-t border-white/5 text-center">
+           <button 
+             onClick={() => navigate('/login')} 
+             className="text-white/30 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
+           >
+             ← Back to Login
+           </button>
+        </div>
+      </motion.div>
     </div>
   );
 }

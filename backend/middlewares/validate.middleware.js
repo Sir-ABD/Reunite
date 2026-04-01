@@ -32,11 +32,14 @@ exports.validate = (schema, source = 'body') => {
       req[`validated${source.charAt(0).toUpperCase() + source.slice(1)}`] = validatedData;
       next();
     } catch (error) {
-      if (error instanceof z.ZodError) {
-        const errors = error.errors.map((err) => ({
-          field: err.path.join('.') || 'root',
-          message: err.message,
-        }));
+  // Use optional chaining and a fallback array
+  const errorList = error?.errors || []; 
+  
+  if (error instanceof z.ZodError || errorList.length > 0) {
+    const errors = errorList.map((err) => ({
+      field: err.path?.join('.') || 'root',
+      message: err.message || 'Validation failed',
+    }));
         console.error('Validation Error', { source, method: req.method, path: req.path, errors, rawData: req[source] });
         return res.status(400).json({
           message: 'Validation failed',

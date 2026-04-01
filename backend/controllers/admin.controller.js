@@ -23,7 +23,7 @@ exports.getAllUsers = async (req, res) => {
     }
 
     pipeline.push({ $match: matchConditions });
-    pipeline.push({ $project: { name: 1, email: 1, role: 1, createdAt: 1, isActive: 1 } });
+    pipeline.push({ $project: { name: 1, email: 1, role: 1, createdAt: 1, isActive: 1, successfulReturnsCount: 1 } });
     pipeline.push({ $sort: { [sortBy]: order === 'asc' ? 1 : -1 } });
     pipeline.push({ $skip: skip });
     pipeline.push({ $limit: parseInt(limit, 10) });
@@ -61,10 +61,16 @@ exports.toggleUserActivation = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id, 'name email role createdAt isActive').lean();
+    const user = await User.findById(id, 'name email role createdAt isActive profilePicture successfulReturnsCount').lean();
     if (!user) {
       return res.status(404).json({ message: 'User not found', code: 'NOT_FOUND' });
     }
+    
+    // If the user profile requested is a keeper, also return their assigned items count.
+    if (user.role === 'keeper') {
+      user.assignedItemsCount = await Item.countDocuments({ keeper: id, isActive: true });
+    }
+
     res.status(200).json({ message: 'User fetched successfully', user });
   } catch (error) {
     console.error('Error fetching user:', error);

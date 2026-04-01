@@ -1123,7 +1123,7 @@ function AdminDashboard() {
 											className="border rounded-lg p-4 h-80 overflow-y-auto shadow-inner"
 											style={{ background: 'var(--color-bg)', borderColor: 'var(--color-secondary)' }}
 										>
-											{selectedConversation.messages.map((msg) => (
+											{[...selectedConversation.messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt)).map((msg) => (
 												<div
 													key={msg._id}
 													className="mb-3 p-3 rounded-lg shadow-sm"

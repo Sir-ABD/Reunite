@@ -40,6 +40,14 @@ router.delete('/:id', authMiddleware.authenticate, validate(idSchema, 'params'),
 // Claim an item (with rate limiting)
 router.post('/:id/claim', authMiddleware.authenticate, validate(idSchema, 'params'), rateLimiter, itemController.claimItem);
 
+// Keeper/Admin approves a pending claim request
+router.post('/:id/approve-claim', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.approveClaimRequest);
+
+// Keeper/Admin rejects a pending claim request
+router.post('/:id/reject-claim', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.rejectClaimRequest);
+
+// implementing AI coach to suggest improvements to title and description for better searchability and clarity
+router.post('/improve-text', authMiddleware.authenticate, itemController.improveText);
 // Mark an item as returned
 // router.post('/:id/return', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.returnItem);
 
@@ -49,13 +57,17 @@ router.post('/:id/generate-qr', authMiddleware.authenticate, validate(idSchema, 
 // Scan the QR code to verify ownership
 router.post('/:id/scan-qr', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.scanQRCode);
 
-// Generate an OTP for the claimant (with rate limiting)
-router.post('/:id/generate-otp', authMiddleware.authenticate, validate(idSchema, 'params'), rateLimiter, itemController.generateOTP);
+// Confirm the handoff of a claimed item without OTP
+router.post('/:id/confirm-handoff', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.confirmHandoff);
 
-// Verify the OTP entered by the claimant (with rate limiting)
-router.post('/:id/verify-otp', authMiddleware.authenticate, validate(idSchema, 'params'), rateLimiter, itemController.verifyOTP);
 
 // Assign a found item to a keeper
 router.post('/:id/assign-keeper', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.assignKeeper);
+
+// Confirm a meeting between finder and owner
+router.post('/:id/confirm-meeting', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.confirmMeeting);
+
+// Keeper gives Stamp of Approval and marks item as returned
+router.post('/:id/approve-handoff', authMiddleware.authenticate, validate(idSchema, 'params'), itemController.keeperApproveHandoff);
 
 module.exports = router;

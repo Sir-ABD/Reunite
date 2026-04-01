@@ -1,6 +1,6 @@
 import { useState, useContext, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { FaBars, FaTimes, FaUser, FaSignOutAlt, FaHome, FaBell, FaPlus, FaComments, FaTachometerAlt, FaShieldAlt } from 'react-icons/fa';
+import { FaBars, FaTimes, FaUser, FaSignOutAlt, FaHome, FaBell, FaPlus, FaComments, FaTachometerAlt, FaShieldAlt, FaUserShield } from 'react-icons/fa';
 import { AuthContext } from '../context/AuthContext';
 import ThemeToggle from './common/ThemeToggle';
 
@@ -8,12 +8,11 @@ import ThemeToggle from './common/ThemeToggle';
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const { user, token, logout, loading } = useContext(AuthContext);
+  const { user, token, logout, loading, isAdmin, unreadCount, unreadMessagesCount } = useContext(AuthContext);
   const location = useLocation();
   const navigate = useNavigate();
   const profileRef = useRef(null);
 
-  const isAdmin = user?.role === 'admin';
   const userInitial = user?.name?.charAt(0).toUpperCase() || 'U';
 
   const navLinks = [
@@ -22,6 +21,7 @@ function Navbar() {
     { to: '/items/create', label: 'Post Item', icon: <FaPlus /> },
     { to: '/conversations', label: 'Conversations', icon: <FaComments /> },
     { to: '/dashboard', label: 'Dashboard', icon: <FaTachometerAlt /> },
+    { to: '/keepers', label: 'Keepers', icon: <FaUserShield /> },
   ];
 
   if (isAdmin) {
@@ -54,139 +54,122 @@ function Navbar() {
   }
 
   return (
-    <nav className="sticky bg-blue-700 text-white  shadow-md top-0 left-0 w-full z-50">
-      <div className="max-w-screen-xl mx-auto py-4 px-4 flex justify-between items-center">
-
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 text-2xl font-bold">
-          <img src="/assets/fud_logo.png" alt="FUD Logo" className="h-10 w-10 object-contain rounded-full bg-white p-1" />
-          Reunite
+    <nav className="sticky top-0 left-0 w-full z-50 shadow-md border-b border-gray-100 dark:border-slate-800 h-16 sm:h-20 transition-colors" style={{ background: 'var(--color-navbar)' }}>
+      <div className="max-w-screen-xl mx-auto h-full px-4 flex items-center justify-between">
+        {/* Logo and Brand */}
+        <Link to="/home" className="flex items-center gap-2 group">
+          <img src="/assets/fud_logo.png" alt="FUD Logo" className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
+          <div className="hidden sm:flex flex-col">
+            <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 tracking-tighter leading-none">Federal University Dutse</span>
+            <span className="text-lg font-black text-blue-900 dark:text-blue-400 leading-none tracking-tighter">Reunite</span>
+          </div>
         </Link>
 
-        {/* Desktop Nav Links */}
-        <div className="hidden md:flex md:gap-3 lg:gap-4 items-center">
-          {token && navLinks.map((link) => (
+        {/* Desktop Links */}
+        <div className="hidden md:flex items-center gap-1 lg:gap-2 h-full">
+          {navLinks.map((link) => (
             <Link
               key={link.to}
               to={link.to}
-              className={`group flex items-center gap-2 hover:text-blue-200 transition relative px-2 py-1 rounded ${location.pathname === link.to ? 'underline font-semibold' : ''}`}
+              className={`px-3 py-2 text-xs lg:text-sm font-bold transition-all rounded-xl flex items-center gap-2 ${
+                location.pathname === link.to 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/10' 
+                  : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'
+              }`}
             >
-              <span className="text-lg hidden lg:inline">{link.icon}</span>
-              <span className="hidden md:inline transition duration-200 text-sm">
-                {link.label}
-              </span>
+              <span className="text-base">{link.icon}</span>
+              {link.label}
             </Link>
           ))}
         </div>
 
-        {/* Right Side */}
-        <div className="flex items-center gap-3">
-
+        {/* Icons and Profile */}
+        <div className="flex items-center gap-2 sm:gap-4">
           {token ? (
             <>
-              {/* Profile button */}
-              <div className="relative hidden md:block" ref={profileRef}>
-                <button
-                  onClick={handleProfileClick}
-                  className="w-10 h-10 bg-blue-800 rounded-full text-white font-bold flex items-center justify-center hover:ring-2 hover:ring-blue-300 transition"
-                >
-                  {userInitial}
+              <Link to="/notifications" className="relative p-2 text-gray-600 hover:text-blue-600 transition">
+                <FaBell className="text-xl" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </Link>
+              <Link to="/conversations" className="relative p-2 text-gray-600 hover:text-blue-600 transition">
+                <FaComments className="text-xl" />
+                {unreadMessagesCount > 0 && (
+                  <span className="absolute top-0 right-0 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white">
+                    {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                  </span>
+                )}
+              </Link>
+              <div className="relative" ref={profileRef}>
+                <button onClick={handleProfileClick} className="flex items-center gap-2">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 bg-blue-900 rounded-full text-white font-bold flex items-center justify-center text-sm shadow-md overflow-hidden hover:scale-105 transition">
+                    {user?.profilePicture ? (
+                      <img src={user.profilePicture} alt="Profile" className="w-full h-full object-cover" />
+                    ) : (
+                      userInitial
+                    )}
+                  </div>
                 </button>
-
                 {profileOpen && (
-                  <div className="absolute right-0 mt-2 w-40 bg-white text-black rounded shadow-lg z-50">
-                    <button
-                      onClick={() => {
-                        navigate('/profile');
-                        setProfileOpen(false);
-                      }}
-                      className="w-full px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2"
-                    >
-                      <FaUser /> Profile
-                    </button>
-                    <button
-                      onClick={handleLogout}
-                      className="w-full px-4 py-2 hover:bg-gray-100 text-sm flex items-center gap-2"
-                    >
-                      <FaSignOutAlt /> Logout
+                  <div className="absolute right-0 mt-3 w-48 bg-white dark:bg-slate-800 border border-gray-100 dark:border-slate-700 rounded-lg shadow-xl overflow-hidden z-50 py-1">
+                    <Link to="/profile" onClick={() => setProfileOpen(false)} className="px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3">
+                      <FaUser className="opacity-50" /> Profile settings
+                    </Link>
+                    {isAdmin && (
+                      <Link to="/admin" onClick={() => setProfileOpen(false)} className="px-4 py-2 text-sm font-bold text-blue-600 hover:bg-gray-50 flex items-center gap-3">
+                        <FaShieldAlt className="opacity-50" /> Admin panel
+                      </Link>
+                    )}
+                    <button onClick={handleLogout} className="w-full text-left px-4 py-2 text-sm font-bold text-red-600 hover:bg-gray-50 flex items-center gap-3">
+                      <FaSignOutAlt className="opacity-50" /> Sign out
                     </button>
                   </div>
                 )}
               </div>
             </>
           ) : (
-            <div className='hidden md:flex gap-4 items-center'>
-              <Link to="/login" className="px-3 py-1 text-sm rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800">Login</Link>
-              <Link to="/register" className="px-3 py-1 text-sm rounded-md bg-gray-200 hover:bg-gray-300 text-gray-800">Register</Link>
+            <div className="flex gap-2">
+              <Link to="/login" className="px-4 py-2 text-xs font-bold rounded-md bg-gray-100 text-gray-800 hover:bg-gray-200 transition">Log in</Link>
+              <Link to="/register" className="px-4 py-2 text-xs font-bold rounded-md bg-blue-900 text-white hover:bg-blue-800 transition">Register</Link>
             </div>
           )}
-
-          {/* Theme toggle + Hamburger */}
-          <ThemeToggle className="ml-2 w-8 h-8 p-1" />
-          <button
-            className="md:hidden"
-            onClick={() => setMenuOpen(!menuOpen)}
-            aria-label="Toggle Menu"
-          >
-            {menuOpen ? <FaTimes className="w-6 h-6" /> : <FaBars className="w-6 h-6" />}
+          <ThemeToggle className="ml-1" />
+          <button className="md:hidden p-2 text-gray-600" onClick={() => setMenuOpen(!menuOpen)}>
+            {menuOpen ? <FaTimes className="text-xl" /> : <FaBars className="text-xl" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile Menu Overlay */}
-      {menuOpen && <div className="fixed inset-0 bg-gray-800/50 z-40 md:hidden" onClick={() => setMenuOpen(false)}></div>}
-
       {/* Mobile Menu */}
-      <div className={`fixed top-0 left-0 h-full w-64 bg-blue-700 text-white transform ${menuOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-300 ease-in-out z-50 md:hidden shadow-2xl backdrop-filter backdrop-blur-md`}>
-        {/* Header */}
-        <div className="p-4 flex justify-between items-center border-b border-blue-600">
-          <h2 className="text-xl font-bold">Reunite</h2>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex flex-col h-full">
-          {/* Navigation Links */}
-          <div className="p-4">
-            <div className="space-y-1">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  className={`flex items-center gap-3 px-3 py-3 rounded-lg transition-all duration-200 hover:bg-blue-600 ${location.pathname === link.to ? 'bg-blue-600 shadow-md border-l-4 border-blue-300' : ''}`}
-                  onClick={() => setMenuOpen(false)}
-                >
-                  <span className="text-lg">{link.icon}</span>
-                  <span className="font-medium">{link.label}</span>
-                </Link>
-              ))}
-            </div>
-          </div>
-
-          {/* Bottom Section - User Actions */}
-          {token && (
-            <div className="bottom-0 absolute w-full border-t border-blue-600 p-4 space-y-2">
-              {/* Profile Button */}
+      {menuOpen && (
+        <div className="md:hidden absolute top-full left-0 w-full bg-white dark:bg-slate-900 border-b border-gray-100 dark:border-slate-800 shadow-xl z-50">
+          <div className="flex flex-col py-2">
+            {navLinks.map((link) => (
               <Link
-                to="/profile"
+                key={link.to}
+                to={link.to}
                 onClick={() => setMenuOpen(false)}
-                className="flex items-center gap-3 px-3 py-2 hover:bg-blue-600 rounded-lg transition-all duration-200 text-sm"
+                className={`px-6 py-3 text-sm font-bold flex items-center gap-3 ${
+                  location.pathname === link.to ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+                }`}
               >
-                <FaUser className="text-base" />
-                <span>Profile</span>
+                {link.icon} {link.label}
               </Link>
-
-              {/* Logout Button */}
+            ))}
+            {token && (
               <button
                 onClick={handleLogout}
-                className="cursor-pointer w-full flex items-center gap-3 px-3 py-2 bg-red-600 hover:bg-red-700 rounded-lg transition-all duration-200 text-sm font-medium"
+                className="px-6 py-3 text-sm font-bold text-red-600 flex items-center gap-3"
               >
-                <FaSignOutAlt className="text-base" />
-                <span>Logout</span>
+                <FaSignOutAlt /> Sign out
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </nav>
   );
 }

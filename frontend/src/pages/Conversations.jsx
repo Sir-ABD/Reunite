@@ -59,23 +59,52 @@ function Conversations() {
         {loading ? (
           <Loader className="text-blue-600" />
         ) : conversations.length > 0 ? (
-          <div className="p-6 rounded-lg shadow-md space-y-4" style={{ background: 'var(--color-secondary)' }}>
-            {conversations.map((conv) => (
+          <div className="grid gap-4">
+            {conversations.map((conv) => {
+              const otherUser = conv.participants.find(p => p._id !== user.id) || { name: 'Unknown User' };
+              const displayUser = conv.lastMessage?.sender || otherUser;
+              return (
               <Link
                 key={conv._id}
                 to={`/messages/${conv._id}`}
-                className="block p-4 border rounded-md transition-colors duration-150"
-                style={{ borderColor: 'var(--color-secondary)', color: 'var(--color-text)' }}
+                className="flex items-center p-4 border rounded-2xl transition-all duration-200 hover:shadow-lg transform hover:-translate-y-1"
+                style={{ borderColor: 'var(--color-secondary)', background: 'var(--color-secondary)' }}
               >
-                <p className="text-sm font-medium" style={{ color: 'var(--color-text)' }}>
-                  For: {conv.item?.title || 'Untitled'} ({conv.item?.status || 'Unknown'}) - 
-                  {conv.participants[1]?.name || 'Unknown'}
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--color-text)' }}>
-                  Last Message: {formatDate(conv.updatedAt)}
-                </p>
+                {/* Avatar */}
+                <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 shadow-sm bg-blue-100 flex items-center justify-center text-blue-800 text-xl font-bold mr-4">
+                  {displayUser.profilePicture ? (
+                    <img src={displayUser.profilePicture} alt={displayUser.name} className="w-full h-full object-cover" />
+                  ) : (
+                    displayUser.name.charAt(0).toUpperCase()
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex justify-between items-baseline mb-1">
+                    <h3 className="text-lg font-bold truncate" style={{ color: 'var(--color-text)' }}>
+                      {displayUser.name}
+                    </h3>
+                    <span className="text-xs ml-2 flex-shrink-0 font-medium opacity-70" style={{ color: 'var(--color-text)' }}>
+                      {formatDate(conv.updatedAt)}
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider" style={{ background: 'var(--color-primary)', color: 'white' }}>
+                      {conv.item?.category?.name || 'Unknown'}
+                    </span>
+                    <span className="text-sm font-semibold truncate opacity-90" style={{ color: 'var(--color-text)' }}>
+                      {conv.item?.title || 'Item Chat'}
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm truncate opacity-70 overflow-hidden" style={{ color: 'var(--color-text)', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>
+                    {conv.lastMessage?.content || 'Started a conversation...'}
+                  </p>
+                </div>
               </Link>
-            ))}
+            )})}
           </div>
         ) : (
           <p className="text-lg text-center py-10" style={{ color: 'var(--color-text)' }}>No conversations found.</p>

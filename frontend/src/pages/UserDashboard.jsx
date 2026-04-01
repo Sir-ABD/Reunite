@@ -1,21 +1,29 @@
 import { useState, useEffect, useContext, useRef, useCallback, useMemo } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import { getMyItems } from '../services/userService';
-import { updateItem, deleteUserItem, generateOTPForItem, verifyOTPForItem } from '../services/itemService';
+import { updateItem, deleteUserItem } from '../services/itemService';
+import { getAssignedItems, facilitateMeeting } from '../services/keeperService';
 import { getCategories } from '../services/categoryService';
-import { Link, useOutletContext } from 'react-router-dom';
+import { Link, useOutletContext, useNavigate } from 'react-router-dom';
 import ItemCard from '../components/ItemCard';
 import Pagination from '../components/common/Pagination';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { motion } from 'framer-motion';
 
 function UserDashboard() {
   const { user, addNotification } = useContext(AuthContext);
+  const isAdminOrKeeper = user?.role === 'admin' || user?.role === 'keeper';
   const { socket } = useOutletContext();
+  const navigate = useNavigate();
   const [viewType, setViewType] = useState(() => localStorage.getItem('userDashboardViewType') || 'list');
-  const [categories, setCategories] = useState([]);
+  const [activeTab, setActiveTab] = useState('myItems');
+  const [assignedItems, setAssignedItems] = useState([]);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [itemsPage, setItemsPage] = useState(1);
+  const [itemsTotalPages, setItemsTotalPages] = useState(1);
+  const [stats, setStats] = useState(null);
   const [editingItemId, setEditingItemId] = useState(null);
   const [editFormData, setEditFormData] = useState({
     title: '',
@@ -26,36 +34,13 @@ function UserDashboard() {
     image: null,
   });
   const [currentImage, setCurrentImage] = useState('');
-  const [otpItemId, setOtpItemId] = useState(null);
-  const [otp, setOtp] = useState('');
-  const [showOtpVerification, setShowOtpVerification] = useState(false);
-
-  const [itemsPage, setItemsPage] = useState(1);
-  const [itemsTotalPages, setItemsTotalPages] = useState(1);
-  const limit = 10;
-
-  // Ref to track shown toasts
-  // const shownToasts = useRef(new Set());
   const fetchTimeoutRef = useRef(null);
-
-  // Fetch categories
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const response = await getCategories();
-        setCategories(response.data.categories || []);
-      } catch (err) {
-        addNotification(`Failed to load categories: ${err.response?.data?.message || err.message}`, 'error');
-      }
-    };
-    fetchCategories();
-  }, [addNotification]);
+  const limit = 10;
 
   // Fetch items with debounce
   useEffect(() => {
     if (!user) return;
 
-    // Clear previous timeout
     if (fetchTimeoutRef.current) {
       clearTimeout(fetchTimeoutRef.current);
     }
@@ -66,52 +51,24 @@ function UserDashboard() {
         const itemsResponse = await getMyItems({ page: itemsPage, limit });
         setItems(itemsResponse.data.items || []);
         setItemsTotalPages(itemsResponse.data.pagination?.totalPages || 1);
+        setStats(itemsResponse.data.stats || null);
+
+        if (user?.role === 'keeper') {
+          const assignedRes = await getAssignedItems();
+          setAssignedItems(assignedRes.data.items || []);
+        }
       } catch (err) {
         addNotification(`Failed to load data: ${err.response?.data?.message || err.message}`, 'error');
       } finally {
         setLoading(false);
       }
-    }, 300); // Debounce by 300ms
-
-    // Socket listener
-    if (socket) {
-      const handleNewNotification = (notification) => {
-        if (notification.type === 'item' && user.id === notification.userId) {
-          addNotification(notification.message, 'info');
-          // Trigger fetch after notification
-          clearTimeout(fetchTimeoutRef.current);
-          fetchTimeoutRef.current = setTimeout(async () => {
-            setLoading(true);
-            try {
-              const itemsResponse = await getMyItems({ page: itemsPage, limit });
-              setItems(itemsResponse.data.items || []);
-              setItemsTotalPages(itemsResponse.data.pagination?.totalPages || 1);
-            } catch (err) {
-              addNotification(`Failed to load data: ${err.response?.data?.message || err.message}`, 'error');
-            } finally {
-              setLoading(false);
-            }
-          }, 300);
-        }
-      };
-
-      socket.on('newNotification', handleNewNotification);
-
-      return () => {
-        socket.off('newNotification', handleNewNotification);
-      };
-    }
+    }, 300);
 
     return () => {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
     };
-  }, [itemsPage, user, socket, addNotification]);
+  }, [itemsPage, user, addNotification]);
 
-  useEffect(() => {
-    localStorage.setItem('userDashboardViewType', viewType);
-  }, [viewType]);
-
-  // Memoized handlers
   const handleEdit = useCallback((item) => {
     setEditingItemId(item._id);
     setEditFormData({
@@ -153,13 +110,11 @@ function UserDashboard() {
       await updateItem(itemId, data);
       const itemsResponse = await getMyItems({ page: itemsPage, limit });
       setItems(itemsResponse.data.items || []);
-      setItemsTotalPages(itemsResponse.data.pagination?.totalPages || 1);
-      addNotification('Item updated successfully!', 'success', { toastId: `update-${itemId}` });
+      setStats(itemsResponse.data.stats || null);
+      addNotification('Item updated successfully!', 'success');
       setEditingItemId(null);
-      setEditFormData({ title: '', description: '', category: '', status: '', location: '', image: null });
-      setCurrentImage('');
     } catch (err) {
-      addNotification(`Failed to update item: ${err.response?.data?.message || err.message}`, 'error', { toastId: `update-error-${itemId}` });
+      addNotification(`Failed to update item: ${err.response?.data?.message || err.message}`, 'error');
     }
   }, [editFormData, itemsPage, addNotification]);
 
@@ -168,387 +123,244 @@ function UserDashboard() {
       try {
         await deleteUserItem(itemId);
         setItems((prev) => prev.filter((item) => item._id !== itemId));
-        if (items.length === 1 && itemsPage > 1) {
-          setItemsPage((prev) => prev - 1);
-        } else {
-          const itemsResponse = await getMyItems({ page: itemsPage, limit });
-          setItems(itemsResponse.data.items || []);
-          setItemsTotalPages(itemsResponse.data.pagination?.totalPages || 1);
-        }
-        addNotification('Item deleted successfully!', 'success', { toastId: `delete-${itemId}` });
+        const itemsResponse = await getMyItems({ page: itemsPage, limit });
+        setItems(itemsResponse.data.items || []);
+        setStats(itemsResponse.data.stats || null);
+        addNotification('Item deleted successfully!', 'success');
       } catch (err) {
-        addNotification(`Failed to delete item: ${err.response?.data?.message || err.message}`, 'error', { toastId: `delete-error-${itemId}` });
+        addNotification(`Failed to delete item: ${err.response?.data?.message || err.message}`, 'error');
       }
     }
-  }, [items, itemsPage, addNotification]);
+  }, [itemsPage, addNotification]);
 
-  const handleGenerateOTP = useCallback(async (itemId) => {
-    const item = items.find((i) => i._id === itemId);
-    if (!item) return;
-
-    if (user.id !== item.postedBy._id && user.id !== item.keeperId) {
-      addNotification('Only the poster or keeper can generate OTP.', 'error', { toastId: `otp-auth-${itemId}` });
-      return;
-    }
-
+  const handleFacilitateMeeting = async (itemId) => {
     try {
-      const response = await generateOTPForItem(itemId);
-      setOtpItemId(itemId);
-      setShowOtpVerification(true);
-      setOtp('');
-      addNotification(`OTP generated: ${response.data.otp}. Share this with the claimant to verify return.`, 'info', { toastId: `otp-gen-${itemId}` });
+      const res = await facilitateMeeting(itemId);
+      addNotification('Meeting facilitation started!', 'success');
+      navigate(`/messages/${res.data.conversation._id}`);
     } catch (err) {
-      addNotification(`Failed to generate OTP: ${err.response?.data?.message || err.message}`, 'error', { toastId: `otp-error-${itemId}` });
+      addNotification(`Failed to facilitate meeting: ${err.response?.data?.message || err.message}`, 'error');
     }
-  }, [items, user.id, addNotification]);
-
-  const handleVerifyOTP = useCallback(async (itemId) => {
-    if (!otp.trim()) {
-      addNotification('Please enter the OTP.', 'error', { toastId: `otp-input-${itemId}` });
-      return;
-    }
-    try {
-      await verifyOTPForItem(itemId, { otp });
-      setItems((prev) =>
-        prev.map((item) => (item._id === itemId ? { ...item, status: 'Returned' } : item))
-      );
-      addNotification('OTP verified successfully! Item marked as returned.', 'success', { toastId: `otp-verify-${itemId}` });
-      setShowOtpVerification(false);
-      setOtpItemId(null);
-      setOtp('');
-    } catch (err) {
-      addNotification(`Failed to verify OTP: ${err.response?.data?.message || err.message}`, 'error', { toastId: `otp-verify-error-${itemId}` });
-    }
-  }, [otp, addNotification]);
-
-  const handleCancelOTP = useCallback(() => {
-    setShowOtpVerification(false);
-    setOtpItemId(null);
-    setOtp('');
-  }, []);
-
-  // Memoized derived states
-  const isClaimant = useMemo(() => user.id === items.find((item) => item._id === editingItemId)?.claimedById, [user.id, items, editingItemId]);
-  const isPosterOrKeeper = useMemo(() => user.id === items.find((item) => item._id === editingItemId)?.postedBy._id || user.id === items.find((item) => item._id === editingItemId)?.keeperId, [user.id, items, editingItemId]);
+  };
 
   if (!user) {
     return (
-      <div className="container mx-auto p-2 sm:p-4 md:p-6 min-h-screen flex items-center justify-center" style={{ background: 'var(--color-bg)' }}>
-        <p className="text-sm sm:text-lg md:text-xl font-medium" style={{ color: 'var(--color-text)' }}>Please log in to view your dashboard.</p>
+      <div className="container mx-auto p-6 min-h-screen flex items-center justify-center">
+        <p className="text-xl font-bold italic opacity-40">Please log in to view your dashboard.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ background: 'var(--color-bg)', color: 'var(--color-text)', minHeight: '100vh' }}>
-      <ToastContainer
-        position="top-right"
-        autoClose={5000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        limit={1} // Limit to 3 toasts at a time
-      />
+    <div className="min-h-screen pt-12 pb-24 px-4 sm:px-6 lg:px-8" style={{ background: 'var(--color-bg)', color: 'var(--color-text)' }}>
+      <ToastContainer position="top-right" autoClose={3000} limit={1} theme="colored" />
+      
       <div className="max-w-7xl mx-auto">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 sm:mb-6 md:mb-8">
-          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold mb-2 sm:mb-0" style={{ color: 'var(--color-text)' }}>User Dashboard</h1>
-          <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 md:space-x-4">
-            <Link
-              to="/items/create"
-              className="py-1 sm:py-2 px-2 sm:px-3 md:px-4 rounded-md transition-colors duration-200 text-xs sm:text-sm md:text-base font-medium shadow-md hover:shadow-lg w-full sm:w-auto text-center"
-              style={{ background: 'var(--color-primary)', color: 'var(--color-bg)' }}
-            >
-              Add New Item
-            </Link>
-            <Link
-              to="/profile"
-              className="py-1 sm:py-2 px-2 sm:px-3 md:px-4 rounded-md transition-colors duration-200 text-xs sm:text-sm md:text-base font-medium shadow-md hover:shadow-lg w-full sm:w-auto text-center"
-              style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-            >
-              Profile
-            </Link>
-            <Link
-              to="/notifications"
-              className="py-1 sm:py-2 px-2 sm:px-3 md:px-4 rounded-md transition-colors duration-200 text-xs sm:text-sm md:text-base font-medium shadow-md hover:shadow-lg w-full sm:w-auto text-center"
-              style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-            >
-              Notifications
-            </Link>
-            <button
-              onClick={() => setViewType(viewType === 'list' ? 'card' : 'list')}
-              className="py-1 sm:py-2 px-2 sm:px-3 md:px-4 rounded-md transition-colors duration-200 text-xs sm:text-sm md:text-base font-medium shadow-md hover:shadow-lg w-full sm:w-auto text-center"
-              style={{ background: 'var(--color-secondary)', color: 'var(--color-text)' }}
-            >
-              Switch to {viewType === 'list' ? 'Card' : 'List'} View
-            </button>
+        {/* Header Section */}
+        <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8 mb-16">
+          <div className="animate-fade-in-down">
+            <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-2">
+              My dashboard
+            </h1>
+            <p className="text-sm sm:text-lg font-medium opacity-60">
+              Manage your reported items on Reunite
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-4 animate-fade-in-down">
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link to="/items/create" className="flex items-center gap-3 px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm hover:bg-blue-700 transition shadow-lg shadow-blue-500/10">
+                <span className="text-xl">+</span> Add item
+              </Link>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link to="/profile" className="flex items-center gap-3 px-8 py-4 bg-white dark:bg-slate-800 text-gray-800 dark:text-white rounded-2xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-md border border-slate-100 dark:border-slate-700">
+                <span className="text-lg opacity-40">👤</span> Profile
+              </Link>
+            </motion.div>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link to="/notifications" className="flex items-center gap-3 px-8 py-4 bg-white dark:bg-slate-800 text-gray-800 dark:text-white rounded-2xl font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition shadow-md border border-slate-100 dark:border-slate-700 relative">
+                <span className="text-lg opacity-40">🔔</span> Notifications
+              </Link>
+            </motion.div>
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center items-center h-32 sm:h-48 md:h-64">
-            <p className="text-sm sm:text-lg md:text-xl animate-pulse" style={{ color: 'var(--color-text)' }}>Loading...</p>
+        {/* Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6 mb-16">
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none transition transform hover:-translate-y-1">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center font-bold text-xl">📦</div>
+              <div className="text-3xl font-bold tracking-tight">{stats?.total || 0}</div>
+            </div>
+            <div className="text-xs font-bold opacity-40 tracking-widest">Total items</div>
           </div>
-        ) : (
-          <div>
-            {viewType === 'list' ? (
-              <div className="rounded-lg shadow-lg p-2 sm:p-4" style={{ background: 'var(--color-secondary)' }}>
+
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none transition transform hover:-translate-y-1">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl flex items-center justify-center font-bold text-xl">❗</div>
+              <div className="text-3xl font-bold tracking-tight">{stats?.lost || 0}</div>
+            </div>
+            <div className="text-xs font-bold opacity-40 tracking-widest">Lost items</div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none transition transform hover:-translate-y-1">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 rounded-xl flex items-center justify-center font-bold text-xl">✅</div>
+              <div className="text-3xl font-bold tracking-tight">{stats?.found || 0}</div>
+            </div>
+            <div className="text-xs font-bold opacity-40 tracking-widest">Found items</div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none transition transform hover:-translate-y-1">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl flex items-center justify-center font-bold text-xl">🤝</div>
+              <div className="text-3xl font-bold tracking-tight">{stats?.claimed || 0}</div>
+            </div>
+            <div className="text-xs font-bold opacity-40 tracking-widest">Claimed</div>
+          </div>
+
+          <div className="p-6 rounded-3xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-xl shadow-slate-200/50 dark:shadow-none transition transform hover:-translate-y-1">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 rounded-xl flex items-center justify-center font-bold text-xl">🏆</div>
+              <div className="text-3xl font-bold tracking-tight">{stats?.returned || 0}</div>
+            </div>
+            <div className="text-xs font-bold opacity-40 tracking-widest">Returned</div>
+          </div>
+        </div>
+
+        {/* Content Section */}
+        <div className="bg-white dark:bg-slate-800/50 rounded-[2rem] shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-700 overflow-hidden mb-12 animate-fade-in-up">
+          <div className="p-10 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-6">
+            <div className="flex flex-col sm:flex-row gap-4 items-center">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight mb-1">Items Dashboard</h2>
+                <p className="text-xs font-medium opacity-40">{activeTab === 'myItems' ? items.length : assignedItems.length} total items in view</p>
+              </div>
+              
+              {user?.role === 'keeper' && (
+                <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-xl ml-4">
+                  <button 
+                    onClick={() => setActiveTab('myItems')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition ${activeTab === 'myItems' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    My Items
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('assignedItems')}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition flex items-center gap-2 ${activeTab === 'assignedItems' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    Assigned Items
+                    {assignedItems.filter(i => i.status !== 'Returned').length > 0 && (
+                      <span className="bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
+                        {assignedItems.filter(i => i.status !== 'Returned').length}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex bg-slate-50 dark:bg-slate-900 p-1 rounded-2xl">
+              <button 
+                onClick={() => setViewType('card')}
+                className={`p-3 rounded-xl transition ${viewType === 'card' ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+              </button>
+              <button 
+                onClick={() => setViewType('list')}
+                className={`p-3 rounded-xl transition ${viewType === 'list' ? 'bg-white dark:bg-slate-800 shadow-sm text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+              </button>
+            </div>
+          </div>
+
+          <div className="p-6 sm:p-10">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-24 opacity-20">
+                <div className="w-12 h-12 border-4 border-t-blue-600 border-gray-200 rounded-full animate-spin mb-4"></div>
+                <p className="font-bold tracking-widest text-xs">Syncing data...</p>
+              </div>
+            ) : (activeTab === 'myItems' ? items : assignedItems).length > 0 ? (
+              viewType === 'list' ? (
                 <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y" style={{ borderColor: 'var(--color-secondary)' }}>
-                    <thead style={{ background: 'var(--color-bg)' }}>
-                      <tr>
-                        <th className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Image</th>
-                        <th className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Title</th>
-                        <th className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Status</th>
-                        <th className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Category</th>
-                        <th className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Posted On</th>
-                        <th className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold" style={{ color: 'var(--color-text)' }}>Actions</th>
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-xs font-bold tracking-widest text-slate-400">
+                        <th className="pb-8 pl-4">Image</th>
+                        <th className="pb-8">Title</th>
+                        <th className="pb-8">Status</th>
+                        <th className="pb-8">Category</th>
+                        <th className="pb-8">Posted on</th>
+                        <th className="pb-8 text-right pr-4">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y" style={{ borderColor: 'var(--color-secondary)' }}>
-                      {items.map((item) => (
-                        <tr key={item._id} className="transition-colors" style={{ background: 'var(--color-secondary)' }}>
-                          {editingItemId === item._id ? (
-                            <>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2">
-                                <div className="flex flex-col items-center">
-                                  {currentImage && (
-                                    <img src={currentImage} alt={item.title} className="w-8 sm:w-12 md:w-16 h-8 sm:h-12 md:h-16 object-cover rounded-md mb-1 sm:mb-2" />
-                                  )}
-                                  <input
-                                    type="file"
-                                    name="image"
-                                    onChange={handleEditChange}
-                                    className="w-full p-1 sm:p-2 border rounded-md text-xs sm:text-sm"
-                                    style={{ 
-                                      border: '1px solid var(--color-secondary)', 
-                                      background: 'var(--color-bg)', 
-                                      color: 'var(--color-text)' 
-                                    }}
-                                  />
-                                </div>
-                              </td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2">
-                                <input
-                                  type="text"
-                                  name="title"
-                                  value={editFormData.title}
-                                  onChange={handleEditChange}
-                                  className="w-full p-1 sm:p-2 border rounded-md text-xs sm:text-sm"
-                                  style={{ 
-                                    border: '1px solid var(--color-secondary)', 
-                                    background: 'var(--color-bg)', 
-                                    color: 'var(--color-text)' 
-                                  }}
-                                  required
-                                />
-                              </td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2">
-                                <select
-                                  name="status"
-                                  value={editFormData.status}
-                                  onChange={handleEditChange}
-                                  className="w-full p-1 sm:p-2 border rounded-md text-xs sm:text-sm"
-                                  style={{ 
-                                    border: '1px solid var(--color-secondary)', 
-                                    background: 'var(--color-bg)', 
-                                    color: 'var(--color-text)' 
-                                  }}
-                                  required
-                                >
-                                  <option value="Lost">Lost</option>
-                                  <option value="Found">Found</option>
-                                  <option value="Claimed">Claimed</option>
-                                  <option value="Returned">Returned</option>
-                                </select>
-                              </td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2">
-                                <select
-                                  name="category"
-                                  value={editFormData.category}
-                                  onChange={handleEditChange}
-                                  className="w-full p-1 sm:p-2 border rounded-md text-xs sm:text-sm"
-                                  style={{ 
-                                    border: '1px solid var(--color-secondary)', 
-                                    background: 'var(--color-bg)', 
-                                    color: 'var(--color-text)' 
-                                  }}
-                                  required
-                                >
-                                  <option value="">Select a category</option>
-                                  {categories.map((category) => (
-                                    <option key={category._id} value={category.name}>
-                                      {category.name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-xs sm:text-sm">{new Date(item.createdAt).toLocaleDateString()}</td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 flex flex-col sm:flex-row gap-1 sm:gap-2">
-                                <button
-                                  onClick={() => handleEditSubmit(item._id)}
-                                  className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto"
-                                  style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-                                >
-                                  Save
+                    <tbody className="divide-y border-t border-slate-100 dark:border-slate-700">
+                      {(activeTab === 'myItems' ? items : assignedItems).map((item) => (
+                        <tr key={item._id} className="group hover:bg-slate-50/50 dark:hover:bg-slate-900/30 transition">
+                          <td className="py-6 pl-4">
+                            <img src={item.image} alt="" className="w-16 h-16 rounded-2xl object-cover shadow-md group-hover:scale-105 transition" />
+                          </td>
+                          <td className="py-6 font-bold text-lg">{item.title}</td>
+                          <td className="py-6">
+                            <span className={`status-badge ${item.status?.toLowerCase()}`}>{item.status}</span>
+                          </td>
+                          <td className="py-6 text-sm font-medium opacity-60">{item.category?.name || 'Uncategorized'}</td>
+                          <td className="py-6 text-sm font-medium opacity-40">{new Date(item.createdAt).toLocaleDateString()}</td>
+                          <td className="py-6 text-right pr-4">
+                            <div className="flex justify-end gap-2">
+                              {activeTab === 'assignedItems' && item.status !== 'Returned' && (
+                                <button onClick={() => handleFacilitateMeeting(item._id)} className="px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition shadow-sm font-bold text-xs flex items-center gap-1">
+                                  <span>👥</span> Facilitate
                                 </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingItemId(null);
-                                    setCurrentImage('');
-                                  }}
-                                  className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto mt-1 sm:mt-0"
-                                  style={{ background: 'var(--color-secondary)', color: 'var(--color-text)' }}
-                                >
-                                  Cancel
-                                </button>
-                              </td>
-                            </>
-                          ) : (
-                            <>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2">
-                                {item.image && <img src={item.image} alt={item.title} className="w-8 sm:w-12 md:w-16 h-8 sm:h-12 md:h-16 object-cover rounded-md" />}
-                              </td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-xs sm:text-sm font-medium">{item.title}</td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-xs sm:text-sm">
-                                <span className={`status-badge ${item.status?.toLowerCase()}`}>
-                                  {item.status}
-                                </span>
-                              </td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-xs sm:text-sm">{item.category?.name || 'N/A'}</td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 text-xs sm:text-sm">{new Date(item.createdAt).toLocaleDateString()}</td>
-                              <td className="px-1 sm:px-2 md:px-4 py-1 sm:py-2 flex flex-col sm:flex-row gap-1 sm:gap-2 flex-wrap">
-                                <Link
-                                  to={`/items/${item._id}`}
-                                  className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto"
-                                  style={{ background: 'var(--color-primary)', color: 'var(--color-bg)' }}
-                                >
-                                  View
-                                </Link>
-                                <button
-                                  onClick={() => handleEdit(item)}
-                                  className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto mt-1 sm:mt-0"
-                                  style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(item._id)}
-                                  className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto mt-1 sm:mt-0"
-                                  style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-                                >
-                                  Delete
-                                </button>
-                                {item.status === 'Claimed' && !isClaimant && (
-                                  <>
-                                    {isPosterOrKeeper && (
-                                      <button
-                                        onClick={() => handleGenerateOTP(item._id)}
-                                        className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto mt-1 sm:mt-0"
-                                        style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-                                      >
-                                        Generate OTP
-                                      </button>
-                                    )}
-                                    {showOtpVerification && otpItemId === item._id && (
-                                      <div className="flex items-center gap-1 sm:gap-2 mt-1 sm:mt-2 w-full">
-                                        <input
-                                          type="text"
-                                          value={otp}
-                                          onChange={(e) => setOtp(e.target.value)}
-                                          placeholder="Enter OTP"
-                                          className="p-1 sm:p-2 border rounded-md text-xs sm:text-sm w-full sm:w-20 focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                          style={{ 
-                                            border: '1px solid var(--color-secondary)', 
-                                            background: 'var(--color-bg)', 
-                                            color: 'var(--color-text)' 
-                                          }}
-                                        />
-                                        <button
-                                          onClick={() => handleVerifyOTP(item._id)}
-                                          className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto mt-1 sm:mt-0"
-                                          style={{ background: 'var(--color-accent)', color: 'var(--color-bg)' }}
-                                        >
-                                          Verify
-                                        </button>
-                                        <button
-                                          onClick={handleCancelOTP}
-                                          className="px-1 sm:px-2 py-0.5 sm:py-1 rounded-md text-xs sm:text-sm transition-colors w-full sm:w-auto mt-1 sm:mt-0"
-                                          style={{ background: 'var(--color-secondary)', color: 'var(--color-text)' }}
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    )}
-                                  </>
-                                )}
-                              </td>
-                            </>
-                          )}
+                              )}
+                              <Link to={`/items/${item._id}`} className="p-3 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-600 hover:text-white transition shadow-sm">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                              </Link>
+                              {activeTab === 'myItems' && (
+                                <>
+                                  <button onClick={() => handleEdit(item)} className="p-3 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200 transition shadow-sm">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                  </button>
+                                  <button onClick={() => handleDelete(item._id)} className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-600 hover:text-white transition shadow-sm">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {items.length > 0 && (
-                  <div className="mt-2 sm:mt-4 md:mt-6">
-                    <Pagination
-                      currentPage={itemsPage}
-                      totalPages={itemsTotalPages}
-                      onPageChange={(page) => setItemsPage(page)}
-                    />
-                  </div>
-                )}
-              </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+                  {(activeTab === 'myItems' ? items : assignedItems).map((item) => (
+                    <ItemCard key={item._id} item={item} showActions={activeTab === 'myItems'} onEdit={() => handleEdit(item)} onDelete={() => handleDelete(item._id)} />
+                  ))}
+                </div>
+              )
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-4">
-                {items.map((item) => {
-                  const isClaimant = user.id === item.claimedById;
-                  const isPosterOrKeeper = user.id === item.postedBy._id || user.id === item.keeperId;
-
-                  return (
-                    <ItemCard
-                      key={item._id}
-                      item={item}
-                      onEdit={() => handleEdit(item)}
-                      onDelete={() => handleDelete(item._id)}
-                      showActions={editingItemId !== item._id}
-                      isEditing={editingItemId === item._id}
-                      editFormData={editingItemId === item._id ? editFormData : null}
-                      onEditChange={handleEditChange}
-                      onEditSubmit={() => handleEditSubmit(item._id)}
-                      onCancelEdit={() => {
-                        setEditingItemId(null);
-                        setCurrentImage('');
-                      }}
-                      // Hide Generate OTP and Verify OTP for claimant
-                      onGenerateOTP={item.status === 'Claimed' && !isClaimant && isPosterOrKeeper ? () => handleGenerateOTP(item._id) : null}
-                      onVerifyOTP={item.status === 'Claimed' && showOtpVerification && otpItemId === item._id && !isClaimant ? () => handleVerifyOTP(item._id) : null}
-                      otp={showOtpVerification && otpItemId === item._id && !isClaimant ? otp : ''}
-                      setOtp={showOtpVerification && otpItemId === item._id && !isClaimant ? setOtp : null}
-                      onCancelOTP={showOtpVerification && otpItemId === item._id && !isClaimant ? handleCancelOTP : null}
-                    />
-                  );
-                })}
-              </div>
-            )}
-            {items.length === 0 && (
-              <div className="rounded-lg shadow-lg p-2 sm:p-4 text-center" style={{ background: 'var(--color-secondary)' }}>
-                <p className="text-sm sm:text-lg md:text-xl" style={{ color: 'var(--color-text)' }}>No items found. Start by adding a new item!</p>
-                <Link
-                  to="/items/create"
-                  className="mt-2 sm:mt-4 inline-block py-1 sm:py-2 px-2 sm:px-4 rounded-md transition-colors duration-200 text-sm sm:text-base font-medium shadow-md hover:shadow-lg"
-                  style={{ background: 'var(--color-primary)', color: 'var(--color-bg)' }}
-                >
-                  Add New Item
+              <div className="text-center py-24 rounded-3xl bg-slate-50 dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800">
+                <div className="text-6xl mb-6 grayscale opacity-20">🍃</div>
+                <h3 className="text-xl font-bold opacity-40 mb-2">No items found</h3>
+                <p className="text-sm font-medium opacity-30 mb-8">Start by adding your first lost or found item</p>
+                <Link to="/items/create" className="px-8 py-4 bg-blue-600 text-white rounded-2xl font-bold text-sm shadow-lg shadow-blue-500/10">
+                  Add item now
                 </Link>
               </div>
             )}
+            
+            {itemsTotalPages > 1 && (
+              <div className="mt-16">
+                <Pagination currentPage={itemsPage} totalPages={itemsTotalPages} onPageChange={setItemsPage} />
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

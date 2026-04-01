@@ -4,6 +4,7 @@ import { useContext, useEffect } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import NotificationsBar from './common/NotificationsBar';
 import Footer from './Footer';
+import { toast } from 'react-toastify';
 
 function Layout() {
   const { user, addNotification, socket } = useContext(AuthContext);
@@ -17,6 +18,14 @@ function Layout() {
     // Additional event handling if needed
     const handleNewNotification = (notification) => {
       addNotification({ ...notification, id: Date.now() });
+      
+      if (notification.type === 'conversation') {
+        if (!window.location.pathname.includes('/messages/')) {
+          toast.info(notification.message, { icon: '💬' });
+        }
+      } else {
+        toast.info(notification.message);
+      }
     };
 
     socket.on('newNotification', handleNewNotification);

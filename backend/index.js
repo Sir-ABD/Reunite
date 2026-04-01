@@ -60,8 +60,8 @@ const options = {
   definition: {
     openapi: '3.0.0', 
     info: {
-      title: 'CampusTrack API docs',
-      description: 'A simple RESTful API documentation with Swagger'
+      title: 'Reunite API docs',
+      description: 'RESTful API documentation for the Reunite FUD Lost & Found System'
     },
     servers: [
       {

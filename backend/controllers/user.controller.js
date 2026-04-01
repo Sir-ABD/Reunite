@@ -1,6 +1,9 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
 const Item = require('../models/item.model');
+const cloudinary = require('../config/cloudinary');
+const fs = require('fs').promises;
+const path = require('path');
 
 // Get current user's profile
 exports.getProfile = async (req, res) => {
@@ -58,9 +61,18 @@ exports.getItems = async (req, res) => {
       isActive: true
     });
 
+    const stats = {
+      total,
+      lost: await Item.countDocuments({ postedBy: userId, status: 'Lost', isActive: true }),
+      found: await Item.countDocuments({ postedBy: userId, status: 'Found', isActive: true }),
+      claimed: await Item.countDocuments({ $or: [{ postedBy: userId }, { claimedBy: userId }], status: 'Claimed', isActive: true }),
+      returned: await Item.countDocuments({ $or: [{ postedBy: userId }, { claimedBy: userId }], status: 'Returned', isActive: true }),
+    };
+
     res.status(200).json({
       message: 'User items fetched successfully',
       items,
+      stats,
       pagination: { currentPage: parseInt(page), totalPages: Math.ceil(total / limit), total }
     });
   } catch (error) {
@@ -72,14 +84,45 @@ exports.getItems = async (req, res) => {
 // Update current user's profile
 exports.updateProfile = async (req, res) => {
   try {
-    const userId = req.user.id; // Use req.user.id instead of req.user._id
+    const userId = req.user.id;
     console.log('Updating profile for user ID:', userId);
 
-    const { name, email } = req.body;
+    const { name, removeProfilePicture } = req.body; // Ignore email from body as it should be read-only
+    let profilePictureUrl = undefined;
+
+    if (req.file) {
+      const filePath = req.file.path;
+      console.log('Uploading profile picture to Cloudinary:', filePath);
+      try {
+        const result = await cloudinary.uploader.upload(filePath, {
+          folder: 'profile-pictures',
+        });
+        profilePictureUrl = result.secure_url;
+        console.log('Cloudinary upload success:', profilePictureUrl);
+      } catch (cloudinaryError) {
+        console.error('Cloudinary upload error:', cloudinaryError.message);
+        return res.status(500).json({
+          error: 'Failed to upload image to Cloudinary',
+          code: 'CLOUDINARY_ERROR',
+        });
+      } finally {
+        // Delete temp file
+        await fs.unlink(filePath).catch((err) =>
+          console.error('Failed to delete temp file:', err)
+        );
+      }
+    }
+
+    const updateData = { name };
+    if (profilePictureUrl) {
+      updateData.profilePicture = profilePictureUrl;
+    } else if (removeProfilePicture === 'true') {
+      updateData.profilePicture = null;
+    }
 
     const user = await User.findOneAndUpdate(
       { _id: userId, isActive: true },
-      { name, email },
+      updateData,
       { new: true, runValidators: true }
     ).select('-password');
 

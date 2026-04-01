@@ -2,13 +2,7 @@
 function Input({ className = '', ...props }) {
   return (
     <input
-      className={`w-full px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${className}`}
-      style={{ 
-        border: '1px solid var(--color-secondary)', 
-        background: 'var(--color-bg)', 
-        color: 'var(--color-text)',
-        ...(props.disabled && { background: 'var(--color-secondary)' })
-      }}
+      className={`w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50 placeholder:text-white/20 transition-all ${className} ${props.disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
       {...props}
     />
   );

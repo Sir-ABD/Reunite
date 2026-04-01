@@ -75,8 +75,12 @@ exports.getConversations = async (req, res) => {
       limit: parseInt(limit, 10),
       populate: [
         { path: 'item', select: 'title status' },
-        { path: 'participants', select: 'name email' },
-        { path: 'lastMessage', select: 'content createdAt isRead' },
+        { path: 'participants', select: 'name email profilePicture' },
+        { 
+          path: 'lastMessage', 
+          select: 'content createdAt isRead sender',
+          populate: { path: 'sender', select: 'name profilePicture' }
+        },
       ],
       sort: { updatedAt: -1 },
     };
@@ -100,5 +104,34 @@ exports.getConversations = async (req, res) => {
   } catch (error) {
     console.error('Error fetching conversations:', error);
     res.status(500).json({ message: 'Failed to fetch conversations', code: 'SERVER_ERROR' });
+  }
+};
+
+// Get the count of unread messages for the authenticated user
+exports.getUnreadMessagesCount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is missing from authentication token', code: 'MISSING_USER_ID' });
+    }
+
+    const Message = require('../models/message.model');
+    
+    // Find all conversations where user is a participant
+    const conversations = await Conversation.find({ participants: userId, isActive: true }).select('_id');
+    const conversationIds = conversations.map(c => c._id);
+    
+    // Count messages in those conversations where sender is != userId and isRead is false
+    const count = await Message.countDocuments({
+      conversation: { $in: conversationIds },
+      sender: { $ne: userId },
+      isRead: false,
+      isActive: true
+    });
+    
+    res.status(200).json({ unreadMessagesCount: count });
+  } catch (error) {
+    console.error('Error fetching unread message count:', error);
+    res.status(500).json({ message: 'Failed to fetch unread message count', code: 'SERVER_ERROR' });
   }
 };

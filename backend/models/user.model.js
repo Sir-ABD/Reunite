@@ -35,6 +35,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null, // Stores the expiration time of the OTP
   },
+  twoFactorSecret: {
+    type: String, // Stores the 2FA secret for authenticator apps or OTPs
+    default: null,
+  },
+  isTwoFactorEnabled: {
+    type: Boolean,
+    default: false,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -42,6 +50,14 @@ const userSchema = new mongoose.Schema({
   updatedAt: {
     type: Date,
     default: Date.now,
+  },
+  profilePicture: {
+    type: String,
+    default: null,
+  },
+  successfulReturnsCount: {
+    type: Number,
+    default: 0,
   },
 });
 

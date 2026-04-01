@@ -12,11 +12,18 @@ router.get(
   notificationController.getNotifications
 );
 
+// Get the count of unread notifications
+router.get(
+  '/unread-count',
+  authMiddleware.authenticate,
+  notificationController.getUnreadCount
+);
+
 // Mark a notification as read
 router.put(
   '/:id/read',
   authMiddleware.authenticate,
-  validate(markAsReadSchema), // Validate request params
+  validate(markAsReadSchema, 'params'), // Validate request params
   notificationController.markAsRead
 );
 

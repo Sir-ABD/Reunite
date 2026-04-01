@@ -4,6 +4,7 @@ import { AuthProvider } from "./context/AuthContext";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
+import ScrollToTop from "./components/ScrollToTop";
 import Home from "./pages/Home";
 import Landing from "./pages/Landing";
 import Login from "./pages/Auth/Login";
@@ -17,17 +18,23 @@ import Notifications from "./pages/Notifications";
 import AdminDashboard from "./pages/AdminDashboard";
 import UserDetail from "./pages/UserDetail";
 import UserDashboard from "./pages/UserDashboard";
+import Keepers from "./pages/Keepers";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsConditions from "./pages/TermsConditions";
 import NotFound from "./pages/NotFound";
-import VerifyOtp from "./pages/Auth/VerifyOtp"; // Import the VerifyOtp component
+import VerifyOtp from "./pages/Auth/VerifyOtp";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ThemeProvider } from "./context/ThemeContext";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 function App() {
 	return (
+    <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
 		<ThemeProvider>
 			<AuthProvider>
 				<BrowserRouter>
+					<ScrollToTop />
 					<ToastContainer
 						position="top-right"
 						autoClose={5000}
@@ -110,6 +117,14 @@ function App() {
 								}
 							/>
 							<Route
+								path="/keepers"
+								element={
+									<ProtectedRoute>
+										<Keepers />
+									</ProtectedRoute>
+								}
+							/>
+							<Route
 								path="/admin"
 								element={
 									<AdminRoute>
@@ -125,12 +140,15 @@ function App() {
 									</AdminRoute>
 								}
 							/>
+							<Route path="/privacy-policy" element={<PrivacyPolicy />} />
+							<Route path="/terms-conditions" element={<TermsConditions />} />
 							<Route path="*" element={<NotFound />} />
 						</Route>
 					</Routes>
 				</BrowserRouter>
 			</AuthProvider>
 		</ThemeProvider>
+    </GoogleOAuthProvider>
 	);
 }
 

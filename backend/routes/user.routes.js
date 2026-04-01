@@ -20,10 +20,13 @@ router.get(
   userController.getItems
 );
 
+const fileUploadMiddleware = require('../middlewares/fileUpload.middleware');
+
 // Update current user's profile (name, email)
 router.put(
   '/me',
   authMiddleware.authenticate,
+  fileUploadMiddleware.uploadFile,
   validate(updateUserSchema), // Validate name and email
   userController.updateProfile
 );

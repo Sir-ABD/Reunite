@@ -7,7 +7,10 @@ const {
   keeperAssignedNotificationTemplate,
   passwordResetOtpTemplate,
   claimTransactionTemplate,
-  accountVerificationOtpTemplate, // Added new template
+  accountVerificationOtpTemplate,
+  matchFoundTemplate,
+  claimPendingApprovalTemplate,
+  claimApprovedTemplate,
 } = require('./emailTemplates');
 
 const transporter = nodemailer.createTransport({
@@ -66,12 +69,37 @@ const sendEmail = async (to, subject, templateName, templateData) => {
       case 'accountVerificationOtp':
         html = accountVerificationOtpTemplate(escapedTemplateData.name, escapedTemplateData.otp);
         break;
+      case 'matchFound':
+        html = matchFoundTemplate(
+          escapedTemplateData.name,
+          escapedTemplateData.itemTitle,
+          escapedTemplateData.matchPercentage,
+          escapedTemplateData.viewLink,
+          escapedTemplateData.actionText,
+          escapedTemplateData.keeperName || null
+        );
+        break;
+      case 'claimPendingApproval':
+        html = claimPendingApprovalTemplate(
+          escapedTemplateData.keeperName,
+          escapedTemplateData.claimantName,
+          escapedTemplateData.itemTitle,
+          escapedTemplateData.itemLink
+        );
+        break;
+      case 'claimApproved':
+        html = claimApprovedTemplate(
+          escapedTemplateData.claimantName,
+          escapedTemplateData.itemTitle,
+          escapedTemplateData.itemLink
+        );
+        break;
       default:
         throw new Error('Invalid email template name');
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_USER,
+      from: `"Reunite" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       html,
