@@ -157,7 +157,6 @@ function Home() {
         setTotalPages(response.data.pagination?.totalPages || 1);
         setLastUpdated(new Date());
         setNewItemsAvailable(false);
-        setNewItemsAvailable(false);
       } else {
         setItems([]);
         setTotalPages(1);
@@ -271,6 +270,8 @@ function Home() {
               <option value="All">All Statuses</option>
               <option value="Lost">Lost</option>
               <option value="Found">Found</option>
+              <option value="Claimed">Claimed</option>
+              <option value="Returned">Returned</option>
             </select>
           </div>
 
