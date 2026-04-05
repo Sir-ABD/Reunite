@@ -19,11 +19,10 @@ module.exports = (server) => {
           return;
         }
 
-        // Normalize origin by removing trailing slashes
         const normalizedOrigin = origin.replace(/\/$/, '');
 
-        // Allow the production origin explicitly, in addition to allowedOrigins
-        if (normalizedOrigin === 'https://lost-and-found-off.onrender.com' || allowedOrigins.includes(normalizedOrigin)) {
+        // Allow origins specified in ALLOWED_ORIGINS environment variable
+        if (allowedOrigins.includes(normalizedOrigin)) {
           console.log('Origin allowed:', normalizedOrigin);
           callback(null, true);
         } else {
