@@ -23,7 +23,7 @@
     "google-auth-library": "^10.6.2",
     "he": "^1.2.0",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.17.1",
+    "mongoose": "^9.4.1",
     "mongoose-paginate-v2": "^1.9.1",
     "morgan": "^1.10.1",
     "multer": "^2.0.2",
