@@ -127,7 +127,7 @@ const layout = (title, headerColor, content, ctaLink = null, ctaText = null) => 
 `;
 
 module.exports = {
-  // OTP email notification
+  // OTP email notifications
   otpTemplate: (name, itemTitle, otp) => layout(
     'Reunite - OTP Verification',
     '#3b82f6', // Blue
