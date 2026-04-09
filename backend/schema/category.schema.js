@@ -6,7 +6,7 @@ const addCategorySchema = z.object({
   description: z.string().optional(),
 });
 
-// Schema for updating a category
+// Schema for updating a categories
 const updateCategorySchema = z.object({
   name: z.string().min(1, 'Category name is required').trim().optional(),
   description: z.string().optional(),
