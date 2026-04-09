@@ -2,7 +2,7 @@ const morgan = require('morgan');
 const fs = require('fs');
 const path = require('path');
 
-// Define the log file path
+// Define the log file paths
 const logFilePath = process.env.LOG_FILE_PATH || '/tmp/access.log';
 
 // Create a write stream for logging
