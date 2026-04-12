@@ -1,1 +1,2 @@
- //write something here and click commit changes
+ //This document will outline the architecture, styling, and navig
+
