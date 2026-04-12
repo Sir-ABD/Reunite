@@ -17,7 +17,7 @@ It replaces informal systems (WhatsApp, word-of-mouth) with a **structured digit
 
 ---
 ## 📸 Screenshot
-![Home](./screenshots/home.png)
+![Home](./Screenshot(221).png)
 ---
 ## 🧩 Features
 
